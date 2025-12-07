@@ -31,4 +31,8 @@ public:
 
     // 甚至可以加一个委托，当死亡时通知 GameMode 检查胜利条件
     // FOnEntityDiedSignature OnDeath; 
+    
+    // --- 组件 ---
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+        class UStaticMeshComponent* StaticMeshComponent;
 };
