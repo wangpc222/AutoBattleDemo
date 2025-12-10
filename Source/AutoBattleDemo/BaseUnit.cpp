@@ -1,8 +1,8 @@
 #include "BaseUnit.h"
 #include "GridManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "EngineUtils.h" // 用于遍历 Actor
-#include "DrawDebugHelpers.h" // 用于调试绘制
+#include "EngineUtils.h"
+#include "DrawDebugHelpers.h"
 
 ABaseUnit::ABaseUnit()
 {
@@ -20,17 +20,35 @@ ABaseUnit::ABaseUnit()
     CurrentPathIndex = 0;
     CurrentTarget = nullptr;
     GridManagerRef = nullptr;
+    bIsActive = false; // 默认不激活，等待 GameMode 调用
+
+    TeamID = ETeam::Player; // 士兵默认是玩家方
+    bIsTargetable = false; // 士兵不是建筑，通常不被防御塔主动攻击（可选）
+}
+
+void ABaseUnit::BeginPlay()
+{
+    Super::BeginPlay();
+    // 获取 GridManager
+    for (TActorIterator<AGridManager> It(GetWorld()); It; ++It)
+    {
+        GridManagerRef = *It;
+        break;
+    }
+
+    if (!GridManagerRef)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseUnit 找不到 GridManager！"));
+    }
 }
 
 void ABaseUnit::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // 只在战斗状态下执行AI逻辑
-    // 注意：这里假设ETeam::Player是玩家控制的单位，ETeam::Enemy是AI控制的
-    if (TeamID == ETeam::Enemy && CurrentState == EUnitState::Idle)
+    // 如果 AI 未激活（备战阶段），不执行任何逻辑
+    if (!bIsActive)
     {
-        // 敌人单位在Idle状态下会自动寻找并攻击
         return;
     }
 
@@ -41,32 +59,49 @@ void ABaseUnit::Tick(float DeltaTime)
         // 如果没目标，找目标
         if (!CurrentTarget)
         {
-            CurrentTarget = FindClosestEnemy();
+            CurrentTarget = FindClosestEnemyBuilding(); // 寻找建筑目标
             if (CurrentTarget)
             {
+                UE_LOG(LogTemp, Log, TEXT("[Unit] %s found target building: %s"),
+                    *GetName(), *CurrentTarget->GetName());
+
                 // 检查目标是否在攻击范围内
                 float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
+                    UE_LOG(LogTemp, Log, TEXT("[Unit] %s in attack range, switching to Attack"), *GetName());
                 }
                 else
                 {
+                    UE_LOG(LogTemp, Log, TEXT("[Unit] %s requesting path (distance: %f)"), *GetName(), Distance);
                     RequestPathToTarget();
                     if (PathPoints.Num() > 0)
                     {
                         CurrentState = EUnitState::Moving;
+                        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s moving with %d waypoints"),
+                            *GetName(), PathPoints.Num());
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Error, TEXT("[Unit] %s failed to find path!"), *GetName());
                     }
                 }
+            }
+            else
+            {
+                // 没有找到任何敌方建筑（可能已经全部摧毁）
+                UE_LOG(LogTemp, Warning, TEXT("[Unit] %s found NO enemy buildings!"), *GetName());
             }
         }
         else
         {
             // 已经有目标，检查目标是否有效
-            if (CurrentTarget->IsPendingKill() ||
-                Cast<ABaseGameEntity>(CurrentTarget)->CurrentHealth <= 0)
+            ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
+            if (!TargetEntity || TargetEntity->CurrentHealth <= 0 || CurrentTarget->IsPendingKill())
             {
-                CurrentTarget = nullptr;
+                UE_LOG(LogTemp, Log, TEXT("[Unit] %s target destroyed, searching for new target"), *GetName());
+                CurrentTarget = nullptr; // 目标失效，重新寻找
             }
         }
         break;
@@ -83,13 +118,19 @@ void ABaseUnit::Tick(float DeltaTime)
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
-                    PathPoints.Empty(); // 清除路径
+                    PathPoints.Empty();
+                    UE_LOG(LogTemp, Warning, TEXT("[Unit] %s reached attack range!"), *GetName());
                 }
+            }
+            else
+            {
+                // 移动途中目标被摧毁
+                CurrentState = EUnitState::Idle;
+                PathPoints.Empty();
             }
         }
         else
         {
-            // 没有路径，回到Idle状态
             CurrentState = EUnitState::Idle;
         }
         break;
@@ -102,123 +143,148 @@ void ABaseUnit::Tick(float DeltaTime)
 
 void ABaseUnit::SetUnitActive(bool bActive)
 {
+    bIsActive = bActive;
+
     if (bActive)
     {
         CurrentState = EUnitState::Idle;
-        // 可以在这里加个特效或动作
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s AI ACTIVATED!"), *GetName());
     }
     else
     {
-        // 停止所有行动
+        // 停止所有行动（回到备战状态）
         CurrentState = EUnitState::Idle;
         CurrentTarget = nullptr;
         PathPoints.Empty();
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s AI DEACTIVATED"), *GetName());
     }
 }
 
-AActor* ABaseUnit::FindClosestEnemy()
+AActor* ABaseUnit::FindClosestEnemyBuilding()
 {
-    AActor* ClosestEnemy = nullptr;
+    AActor* ClosestBuilding = nullptr;
     float ClosestDistance = FLT_MAX;
 
-    // 获取当前关卡的所有BaseGameEntity
+    // 获取所有 BaseGameEntity（包括建筑和士兵）
     TArray<AActor*> AllEntities;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseGameEntity::StaticClass(), AllEntities);
+
+    UE_LOG(LogTemp, Log, TEXT("[Unit] %s searching among %d entities"),
+        *GetName(), AllEntities.Num());
 
     for (AActor* Actor : AllEntities)
     {
         ABaseGameEntity* Entity = Cast<ABaseGameEntity>(Actor);
-        if (Entity && Entity != this && Entity->TeamID != this->TeamID)
+
+        // 筛选条件：
+        // 1. 不是自己
+        // 2. 敌对阵营
+        // 3. 可以被攻击（建筑）
+        // 4. 存活
+        // 5. 不是士兵（通过检查是否是 ABaseUnit）
+        if (Entity && Entity != this &&
+            Entity->TeamID != this->TeamID &&
+            Entity->bIsTargetable &&
+            Entity->CurrentHealth > 0 &&
+            !Entity->IsA(ABaseUnit::StaticClass())) // 关键：排除士兵
         {
-            // 检查目标是否存活
-            if (Entity->CurrentHealth > 0)
+            float Distance = FVector::Dist(GetActorLocation(), Entity->GetActorLocation());
+
+            // 优先攻击攻击范围内的建筑
+            if (Distance <= AttackRange)
             {
-                // 计算距离
-                float Distance = FVector::Dist(GetActorLocation(), Entity->GetActorLocation());
+                UE_LOG(LogTemp, Log, TEXT("[Unit] %s found building in attack range: %s"),
+                    *GetName(), *Entity->GetName());
+                return Entity;
+            }
 
-                // 如果当前目标是攻击范围内的，优先选择
-                if (Distance <= AttackRange)
-                {
-                    return Entity; // 立即返回攻击范围内的敌人
-                }
-
-                // 否则选择最近的敌人
-                if (Distance < ClosestDistance)
-                {
-                    ClosestDistance = Distance;
-                    ClosestEnemy = Entity;
-                }
+            // 否则选择最近的建筑
+            if (Distance < ClosestDistance)
+            {
+                ClosestDistance = Distance;
+                ClosestBuilding = Entity;
             }
         }
     }
 
-    return ClosestEnemy;
+    if (ClosestBuilding)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s closest building: %s (Distance: %f)"),
+            *GetName(), *ClosestBuilding->GetName(), ClosestDistance);
+    }
+
+    return ClosestBuilding;
 }
 
 void ABaseUnit::RequestPathToTarget()
 {
     if (!CurrentTarget)
     {
+        UE_LOG(LogTemp, Error, TEXT("[Unit] %s RequestPath called with no target!"), *GetName());
         return;
     }
 
-    // 获取GridManager
+    // 获取 GridManager
     if (!GridManagerRef)
     {
-        // 查找场景中的GridManager
         TArray<AActor*> FoundActors;
         UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGridManager::StaticClass(), FoundActors);
 
         if (FoundActors.Num() > 0)
         {
             GridManagerRef = Cast<AGridManager>(FoundActors[0]);
+            UE_LOG(LogTemp, Warning, TEXT("[Unit] %s found GridManager!"), *GetName());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[Unit] %s CANNOT FIND GridManager!"), *GetName());
+            return;
         }
     }
 
     if (GridManagerRef)
     {
-        // 调用寻路函数
-        PathPoints = GridManagerRef->FindPath(GetActorLocation(), CurrentTarget->GetActorLocation());
+        FVector StartPos = GetActorLocation();
+        FVector EndPos = CurrentTarget->GetActorLocation();
+
+        UE_LOG(LogTemp, Log, TEXT("[Unit] %s pathfinding: %s -> %s"),
+            *GetName(), *StartPos.ToString(), *EndPos.ToString());
+
+        PathPoints = GridManagerRef->FindPath(StartPos, EndPos);
+
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s path result: %d waypoints"),
+            *GetName(), PathPoints.Num());
 
         // 调试：显示路径
-#if WITH_EDITOR
         if (PathPoints.Num() > 1)
         {
             for (int32 i = 0; i < PathPoints.Num() - 1; i++)
             {
                 DrawDebugLine(GetWorld(), PathPoints[i], PathPoints[i + 1],
-                    FColor::Green, false, 2.0f, 0, 2.0f);
+                    FColor::Cyan, false, 5.0f, 0, 5.0f);
             }
+            DrawDebugSphere(GetWorld(), PathPoints[0], 30.0f, 12, FColor::Blue, false, 5.0f);
+            DrawDebugSphere(GetWorld(), PathPoints.Last(), 30.0f, 12, FColor::Red, false, 5.0f);
         }
-#endif
 
         CurrentPathIndex = 0;
 
-        if (PathPoints.Num() > 0)
+        // 如果起点就是当前位置，跳过第一个点
+        if (PathPoints.Num() > 1 && FVector::DistSquared(PathPoints[0], GetActorLocation()) < 100.0f)
         {
-            // 确保起点正确（去掉第一个点如果是当前位置）
-            if (PathPoints.Num() > 1 && FVector::DistSquared(PathPoints[0], GetActorLocation()) < 100.0f)
-            {
-                CurrentPathIndex = 1;
-            }
+            CurrentPathIndex = 1;
         }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("找不到GridManager！"));
     }
 }
 
 void ABaseUnit::MoveAlongPath(float DeltaTime)
 {
-    // 检查是否还有路径
     if (PathPoints.Num() == 0 || CurrentPathIndex >= PathPoints.Num())
     {
         CurrentState = EUnitState::Idle;
         return;
     }
 
-    // 检查目标是否还存在
     if (!CurrentTarget || CurrentTarget->IsPendingKill())
     {
         CurrentState = EUnitState::Idle;
@@ -227,10 +293,7 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
         return;
     }
 
-    // 获取当前目标点
     FVector TargetPoint = PathPoints[CurrentPathIndex];
-
-    // 计算移动方向
     FVector CurrentLocation = GetActorLocation();
     FVector Direction = (TargetPoint - CurrentLocation).GetSafeNormal();
 
@@ -242,7 +305,7 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
     if (!Direction.IsNearlyZero())
     {
         FRotator NewRotation = Direction.Rotation();
-        NewRotation.Pitch = 0; // 保持水平
+        NewRotation.Pitch = 0;
         NewRotation.Roll = 0;
         SetActorRotation(NewRotation);
     }
@@ -253,20 +316,21 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
     {
         CurrentPathIndex++;
 
-        // 如果到达最后一个点，转为Idle状态
         if (CurrentPathIndex >= PathPoints.Num())
         {
-            // 检查是否在攻击范围内
+            // 到达路径终点
             if (CurrentTarget)
             {
                 float Distance = FVector::Dist(NewLocation, CurrentTarget->GetActorLocation());
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
+                    UE_LOG(LogTemp, Warning, TEXT("[Unit] %s path complete, starting attack!"), *GetName());
                 }
                 else
                 {
-                    // 重新寻路
+                    // 目标可能移动了（建筑不会动，但以防万一）
+                    UE_LOG(LogTemp, Warning, TEXT("[Unit] %s reached end but target still far, re-pathing"), *GetName());
                     RequestPathToTarget();
                     if (PathPoints.Num() == 0)
                     {
@@ -290,10 +354,10 @@ void ABaseUnit::PerformAttack()
         return;
     }
 
-    // 检查目标是否死亡
     ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
     if (!TargetEntity || TargetEntity->CurrentHealth <= 0)
     {
+        UE_LOG(LogTemp, Log, TEXT("[Unit] %s target destroyed during attack"), *GetName());
         CurrentTarget = nullptr;
         CurrentState = EUnitState::Idle;
         return;
@@ -303,7 +367,8 @@ void ABaseUnit::PerformAttack()
     float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
     if (Distance > AttackRange)
     {
-        // 目标跑出攻击范围，重新寻路
+        // 目标超出攻击范围，重新寻路
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s target out of range, re-pathing"), *GetName());
         RequestPathToTarget();
         if (PathPoints.Num() > 0)
         {
@@ -320,7 +385,6 @@ void ABaseUnit::PerformAttack()
         FDamageEvent DamageEvent;
         CurrentTarget->TakeDamage(Damage, DamageEvent, nullptr, this);
 
-        // 更新攻击时间
         LastAttackTime = CurrentTime;
 
         // 面向目标
@@ -333,7 +397,7 @@ void ABaseUnit::PerformAttack()
             SetActorRotation(NewRotation);
         }
 
-        // 播放攻击动画/音效（如果有的话）
-        // UE_LOG(LogTemp, Log, TEXT("%s attacked %s!"), *GetName(), *CurrentTarget->GetName());
+        UE_LOG(LogTemp, Log, TEXT("[Unit] %s attacked %s for %f damage!"),
+            *GetName(), *CurrentTarget->GetName(), Damage);
     }
 }
