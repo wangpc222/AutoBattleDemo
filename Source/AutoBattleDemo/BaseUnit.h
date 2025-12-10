@@ -40,8 +40,8 @@ public:
 
 protected:
     // --- 核心逻辑 ---
-    // 1. 寻找最近的敌人 (遍历所有 ABaseGameEntity)
-    AActor* FindClosestEnemy();
+    // 1. 寻找最近的敌方建筑（防御塔、基地等）
+    AActor* FindClosestEnemyBuilding();
 
     // 2. 请求路径 (调用 Member A 的 GridManager)
     void RequestPathToTarget();
@@ -51,6 +51,7 @@ protected:
 
     // 4. 执行攻击
     void PerformAttack();
+
 
 private:
     EUnitState CurrentState;
@@ -68,4 +69,7 @@ private:
 
     // 引用 GridManager (BeginPlay 获取)
     class AGridManager* GridManagerRef;
+
+    // AI 是否激活（用于区分备战和战斗阶段）
+    bool bIsActive;
 };
