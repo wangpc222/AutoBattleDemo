@@ -38,6 +38,14 @@ public:
     UPROPERTY(EditAnywhere, Category = "Combat")
         float AttackInterval;
 
+    // 添加胶囊体组件声明
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+        class UCapsuleComponent* CapsuleComp;
+
+    // 添加网格组件声明 (如果你之前是在 BaseBuilding 里写的，这里也要写，或者统一写在 BaseGameEntity 里)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+        class UStaticMeshComponent* MeshComp;
+
 protected:
     // --- 核心逻辑 ---
     // 1. 寻找最近的敌人 (遍历所有 ABaseGameEntity)

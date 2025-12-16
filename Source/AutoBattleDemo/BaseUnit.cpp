@@ -1,16 +1,30 @@
 #include "BaseUnit.h"
 #include "GridManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "EngineUtils.h" // ÓÃÓÚ±éÀú Actor
-#include "DrawDebugHelpers.h" // ÓÃÓÚµ÷ÊÔ»æÖÆ
+#include "EngineUtils.h" // ç”¨äºéå† Actor
+#include "Components/CapsuleComponent.h" 
 
 ABaseUnit::ABaseUnit()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Ä¬ÈÏÊıÖµ
+    // 1. åˆ›å»ºèƒ¶å›Šä½“ä½œä¸ºæ ¹ç»„ä»¶
+    CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComp"));
+    RootComponent = CapsuleComp;
+
+    // ç»™ä¸ªå¸¸ç”¨çš„é»˜è®¤å€¼å³å¯ï¼Œå…·ä½“çš„æ•°å€¼å» BP_Soldier è“å›¾é‡Œè®¾
+    CapsuleComp->InitCapsuleSize(40.0f, 90.0f);
+    CapsuleComp->SetCollisionProfileName(TEXT("Pawn"));
+    
+
+    // 2. åˆ›å»ºæ¨¡å‹ç»„ä»¶ï¼ŒæŒ‚åœ¨èƒ¶å›Šä½“ä¸‹é¢
+    MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+    MeshComp->SetupAttachment(RootComponent);
+
+ 
+    // é»˜è®¤æ•°å€¼
     MaxHealth = 100.0f;
-    AttackRange = 150.0f; // ½üÕ½¾àÀë
+    AttackRange = 150.0f; // è¿‘æˆ˜è·ç¦»
     Damage = 10.0f;
     MoveSpeed = 300.0f;
     AttackInterval = 1.0f;
@@ -26,25 +40,25 @@ void ABaseUnit::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // Ö»ÔÚÕ½¶·×´Ì¬ÏÂÖ´ĞĞAIÂß¼­
-    // ×¢Òâ£ºÕâÀï¼ÙÉèETeam::PlayerÊÇÍæ¼Ò¿ØÖÆµÄµ¥Î»£¬ETeam::EnemyÊÇAI¿ØÖÆµÄ
+    // åªåœ¨æˆ˜æ–—çŠ¶æ€ä¸‹æ‰§è¡ŒAIé€»è¾‘
+    // æ³¨æ„ï¼šè¿™é‡Œå‡è®¾ETeam::Playeræ˜¯ç©å®¶æ§åˆ¶çš„å•ä½ï¼ŒETeam::Enemyæ˜¯AIæ§åˆ¶çš„
     if (TeamID == ETeam::Enemy && CurrentState == EUnitState::Idle)
     {
-        // µĞÈËµ¥Î»ÔÚIdle×´Ì¬ÏÂ»á×Ô¶¯Ñ°ÕÒ²¢¹¥»÷
+        // æ•Œäººå•ä½åœ¨IdleçŠ¶æ€ä¸‹ä¼šè‡ªåŠ¨å¯»æ‰¾å¹¶æ”»å‡»
         return;
     }
 
-    // ×´Ì¬»ú
+    // çŠ¶æ€æœº
     switch (CurrentState)
     {
     case EUnitState::Idle:
-        // Èç¹ûÃ»Ä¿±ê£¬ÕÒÄ¿±ê
+        // å¦‚æœæ²¡ç›®æ ‡ï¼Œæ‰¾ç›®æ ‡
         if (!CurrentTarget)
         {
             CurrentTarget = FindClosestEnemy();
             if (CurrentTarget)
             {
-                // ¼ì²éÄ¿±êÊÇ·ñÔÚ¹¥»÷·¶Î§ÄÚ
+                // æ£€æŸ¥ç›®æ ‡æ˜¯å¦åœ¨æ”»å‡»èŒƒå›´å†…
                 float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
                 if (Distance <= AttackRange)
                 {
@@ -62,7 +76,7 @@ void ABaseUnit::Tick(float DeltaTime)
         }
         else
         {
-            // ÒÑ¾­ÓĞÄ¿±ê£¬¼ì²éÄ¿±êÊÇ·ñÓĞĞ§
+            // å·²ç»æœ‰ç›®æ ‡ï¼Œæ£€æŸ¥ç›®æ ‡æ˜¯å¦æœ‰æ•ˆ
             if (CurrentTarget->IsPendingKill() ||
                 Cast<ABaseGameEntity>(CurrentTarget)->CurrentHealth <= 0)
             {
@@ -76,20 +90,20 @@ void ABaseUnit::Tick(float DeltaTime)
         {
             MoveAlongPath(DeltaTime);
 
-            // ÒÆ¶¯¹ı³ÌÖĞ¼ì²éÊÇ·ñ½øÈë¹¥»÷·¶Î§
+            // ç§»åŠ¨è¿‡ç¨‹ä¸­æ£€æŸ¥æ˜¯å¦è¿›å…¥æ”»å‡»èŒƒå›´
             if (CurrentTarget)
             {
                 float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
-                    PathPoints.Empty(); // Çå³ıÂ·¾¶
+                    PathPoints.Empty(); // æ¸…é™¤è·¯å¾„
                 }
             }
         }
         else
         {
-            // Ã»ÓĞÂ·¾¶£¬»Øµ½Idle×´Ì¬
+            // æ²¡æœ‰è·¯å¾„ï¼Œå›åˆ°IdleçŠ¶æ€
             CurrentState = EUnitState::Idle;
         }
         break;
@@ -105,11 +119,11 @@ void ABaseUnit::SetUnitActive(bool bActive)
     if (bActive)
     {
         CurrentState = EUnitState::Idle;
-        // ¿ÉÒÔÔÚÕâÀï¼Ó¸öÌØĞ§»ò¶¯×÷
+        // å¯ä»¥åœ¨è¿™é‡ŒåŠ ä¸ªç‰¹æ•ˆæˆ–åŠ¨ä½œ
     }
     else
     {
-        // Í£Ö¹ËùÓĞĞĞ¶¯
+        // åœæ­¢æ‰€æœ‰è¡ŒåŠ¨
         CurrentState = EUnitState::Idle;
         CurrentTarget = nullptr;
         PathPoints.Empty();
@@ -121,7 +135,7 @@ AActor* ABaseUnit::FindClosestEnemy()
     AActor* ClosestEnemy = nullptr;
     float ClosestDistance = FLT_MAX;
 
-    // »ñÈ¡µ±Ç°¹Ø¿¨µÄËùÓĞBaseGameEntity
+    // è·å–å½“å‰å…³å¡çš„æ‰€æœ‰BaseGameEntity
     TArray<AActor*> AllEntities;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseGameEntity::StaticClass(), AllEntities);
 
@@ -130,19 +144,19 @@ AActor* ABaseUnit::FindClosestEnemy()
         ABaseGameEntity* Entity = Cast<ABaseGameEntity>(Actor);
         if (Entity && Entity != this && Entity->TeamID != this->TeamID)
         {
-            // ¼ì²éÄ¿±êÊÇ·ñ´æ»î
+            // æ£€æŸ¥ç›®æ ‡æ˜¯å¦å­˜æ´»
             if (Entity->CurrentHealth > 0)
             {
-                // ¼ÆËã¾àÀë
+                // è®¡ç®—è·ç¦»
                 float Distance = FVector::Dist(GetActorLocation(), Entity->GetActorLocation());
 
-                // Èç¹ûµ±Ç°Ä¿±êÊÇ¹¥»÷·¶Î§ÄÚµÄ£¬ÓÅÏÈÑ¡Ôñ
+                // å¦‚æœå½“å‰ç›®æ ‡æ˜¯æ”»å‡»èŒƒå›´å†…çš„ï¼Œä¼˜å…ˆé€‰æ‹©
                 if (Distance <= AttackRange)
                 {
-                    return Entity; // Á¢¼´·µ»Ø¹¥»÷·¶Î§ÄÚµÄµĞÈË
+                    return Entity; // ç«‹å³è¿”å›æ”»å‡»èŒƒå›´å†…çš„æ•Œäºº
                 }
 
-                // ·ñÔòÑ¡Ôñ×î½üµÄµĞÈË
+                // å¦åˆ™é€‰æ‹©æœ€è¿‘çš„æ•Œäºº
                 if (Distance < ClosestDistance)
                 {
                     ClosestDistance = Distance;
@@ -162,10 +176,10 @@ void ABaseUnit::RequestPathToTarget()
         return;
     }
 
-    // »ñÈ¡GridManager
+    // è·å–GridManager
     if (!GridManagerRef)
     {
-        // ²éÕÒ³¡¾°ÖĞµÄGridManager
+        // æŸ¥æ‰¾åœºæ™¯ä¸­çš„GridManager
         TArray<AActor*> FoundActors;
         UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGridManager::StaticClass(), FoundActors);
 
@@ -177,10 +191,10 @@ void ABaseUnit::RequestPathToTarget()
 
     if (GridManagerRef)
     {
-        // µ÷ÓÃÑ°Â·º¯Êı
+        // è°ƒç”¨å¯»è·¯å‡½æ•°
         PathPoints = GridManagerRef->FindPath(GetActorLocation(), CurrentTarget->GetActorLocation());
 
-        // µ÷ÊÔ£ºÏÔÊ¾Â·¾¶
+        // è°ƒè¯•ï¼šæ˜¾ç¤ºè·¯å¾„
 #if WITH_EDITOR
         if (PathPoints.Num() > 1)
         {
@@ -196,7 +210,7 @@ void ABaseUnit::RequestPathToTarget()
 
         if (PathPoints.Num() > 0)
         {
-            // È·±£ÆğµãÕıÈ·£¨È¥µôµÚÒ»¸öµãÈç¹ûÊÇµ±Ç°Î»ÖÃ£©
+            // ç¡®ä¿èµ·ç‚¹æ­£ç¡®ï¼ˆå»æ‰ç¬¬ä¸€ä¸ªç‚¹å¦‚æœæ˜¯å½“å‰ä½ç½®ï¼‰
             if (PathPoints.Num() > 1 && FVector::DistSquared(PathPoints[0], GetActorLocation()) < 100.0f)
             {
                 CurrentPathIndex = 1;
@@ -205,20 +219,20 @@ void ABaseUnit::RequestPathToTarget()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("ÕÒ²»µ½GridManager£¡"));
+        UE_LOG(LogTemp, Error, TEXT("æ‰¾ä¸åˆ°GridManagerï¼"));
     }
 }
 
 void ABaseUnit::MoveAlongPath(float DeltaTime)
 {
-    // ¼ì²éÊÇ·ñ»¹ÓĞÂ·¾¶
+    // æ£€æŸ¥æ˜¯å¦è¿˜æœ‰è·¯å¾„
     if (PathPoints.Num() == 0 || CurrentPathIndex >= PathPoints.Num())
     {
         CurrentState = EUnitState::Idle;
         return;
     }
 
-    // ¼ì²éÄ¿±êÊÇ·ñ»¹´æÔÚ
+    // æ£€æŸ¥ç›®æ ‡æ˜¯å¦è¿˜å­˜åœ¨
     if (!CurrentTarget || CurrentTarget->IsPendingKill())
     {
         CurrentState = EUnitState::Idle;
@@ -227,36 +241,36 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
         return;
     }
 
-    // »ñÈ¡µ±Ç°Ä¿±êµã
+    // è·å–å½“å‰ç›®æ ‡ç‚¹
     FVector TargetPoint = PathPoints[CurrentPathIndex];
 
-    // ¼ÆËãÒÆ¶¯·½Ïò
+    // è®¡ç®—ç§»åŠ¨æ–¹å‘
     FVector CurrentLocation = GetActorLocation();
     FVector Direction = (TargetPoint - CurrentLocation).GetSafeNormal();
 
-    // ÒÆ¶¯
+    // ç§»åŠ¨
     FVector NewLocation = CurrentLocation + Direction * MoveSpeed * DeltaTime;
     SetActorLocation(NewLocation);
 
-    // ÃæÏòÒÆ¶¯·½Ïò
+    // é¢å‘ç§»åŠ¨æ–¹å‘
     if (!Direction.IsNearlyZero())
     {
         FRotator NewRotation = Direction.Rotation();
-        NewRotation.Pitch = 0; // ±£³ÖË®Æ½
+        NewRotation.Pitch = 0; // ä¿æŒæ°´å¹³
         NewRotation.Roll = 0;
         SetActorRotation(NewRotation);
     }
 
-    // ¼ì²éÊÇ·ñµ½´ïµ±Ç°Â·¾¶µã
+    // æ£€æŸ¥æ˜¯å¦åˆ°è¾¾å½“å‰è·¯å¾„ç‚¹
     float DistanceToPoint = FVector::DistSquared(NewLocation, TargetPoint);
-    if (DistanceToPoint < 100.0f) // 10cm Èİ²î
+    if (DistanceToPoint < 100.0f) // 10cm å®¹å·®
     {
         CurrentPathIndex++;
 
-        // Èç¹ûµ½´ï×îºóÒ»¸öµã£¬×ªÎªIdle×´Ì¬
+        // å¦‚æœåˆ°è¾¾æœ€åä¸€ä¸ªç‚¹ï¼Œè½¬ä¸ºIdleçŠ¶æ€
         if (CurrentPathIndex >= PathPoints.Num())
         {
-            // ¼ì²éÊÇ·ñÔÚ¹¥»÷·¶Î§ÄÚ
+            // æ£€æŸ¥æ˜¯å¦åœ¨æ”»å‡»èŒƒå›´å†…
             if (CurrentTarget)
             {
                 float Distance = FVector::Dist(NewLocation, CurrentTarget->GetActorLocation());
@@ -266,7 +280,7 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
                 }
                 else
                 {
-                    // ÖØĞÂÑ°Â·
+                    // é‡æ–°å¯»è·¯
                     RequestPathToTarget();
                     if (PathPoints.Num() == 0)
                     {
@@ -290,7 +304,7 @@ void ABaseUnit::PerformAttack()
         return;
     }
 
-    // ¼ì²éÄ¿±êÊÇ·ñËÀÍö
+    // æ£€æŸ¥ç›®æ ‡æ˜¯å¦æ­»äº¡
     ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
     if (!TargetEntity || TargetEntity->CurrentHealth <= 0)
     {
@@ -299,11 +313,11 @@ void ABaseUnit::PerformAttack()
         return;
     }
 
-    // ¼ì²éÄ¿±êÊÇ·ñÔÚ¹¥»÷·¶Î§ÄÚ
+    // æ£€æŸ¥ç›®æ ‡æ˜¯å¦åœ¨æ”»å‡»èŒƒå›´å†…
     float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
     if (Distance > AttackRange)
     {
-        // Ä¿±êÅÜ³ö¹¥»÷·¶Î§£¬ÖØĞÂÑ°Â·
+        // ç›®æ ‡è·‘å‡ºæ”»å‡»èŒƒå›´ï¼Œé‡æ–°å¯»è·¯
         RequestPathToTarget();
         if (PathPoints.Num() > 0)
         {
@@ -312,18 +326,18 @@ void ABaseUnit::PerformAttack()
         return;
     }
 
-    // ¹¥»÷ÀäÈ´¼ì²é
+    // æ”»å‡»å†·å´æ£€æŸ¥
     float CurrentTime = GetWorld()->GetTimeSeconds();
     if (CurrentTime - LastAttackTime >= AttackInterval)
     {
-        // Ó¦ÓÃÉËº¦
+        // åº”ç”¨ä¼¤å®³
         FDamageEvent DamageEvent;
         CurrentTarget->TakeDamage(Damage, DamageEvent, nullptr, this);
 
-        // ¸üĞÂ¹¥»÷Ê±¼ä
+        // æ›´æ–°æ”»å‡»æ—¶é—´
         LastAttackTime = CurrentTime;
 
-        // ÃæÏòÄ¿±ê
+        // é¢å‘ç›®æ ‡
         FVector Direction = (CurrentTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
         if (!Direction.IsNearlyZero())
         {
@@ -333,7 +347,7 @@ void ABaseUnit::PerformAttack()
             SetActorRotation(NewRotation);
         }
 
-        // ²¥·Å¹¥»÷¶¯»­/ÒôĞ§£¨Èç¹ûÓĞµÄ»°£©
+        // æ’­æ”¾æ”»å‡»åŠ¨ç”»/éŸ³æ•ˆï¼ˆå¦‚æœæœ‰çš„è¯ï¼‰
         // UE_LOG(LogTemp, Log, TEXT("%s attacked %s!"), *GetName(), *CurrentTarget->GetName());
     }
 }

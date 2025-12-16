@@ -5,6 +5,7 @@
 #include "RTSGameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "Components/CapsuleComponent.h"	// 胶囊体组件
 
 ARTSGameMode::ARTSGameMode()
 {
@@ -17,89 +18,114 @@ void ARTSGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 缓存 GridManager
+	// 缓存 GridManager，避免每一帧都去搜索
 	GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 }
 
-// 核心逻辑：买兵
 bool ARTSGameMode::TryBuyUnit(EUnitType Type, int32 Cost, int32 GridX, int32 GridY)
 {
-	// 只有备战阶段能买
-	if (CurrentState != EGameState::Preparation) return false;
+    // 1. 规则检查
+    if (CurrentState != EGameState::Preparation) return false;
 
-	// 1. 检查金币
-	URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
-	// 如果没有 GameInstance，默认给个 9999 钱方便测试，防止一直买不了
-	int32 CurrentGold = GI ? GI->PlayerGold : 9999;
+    // 2. 检查金币
+    URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+    int32 CurrentGold = GI ? GI->PlayerGold : 9999;
 
-	if (CurrentGold < Cost)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Not enough gold!"));
-		return false;
-	}
+    if (CurrentGold < Cost)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Buy failed: Not enough gold"));
+        return false;
+    }
 
-	// 2. 选择生成的蓝图类
-	TSubclassOf<ABaseUnit> SpawnClass = nullptr;
-	if (Type == EUnitType::Soldier) SpawnClass = SoldierClass;
-	else if (Type == EUnitType::Archer) SpawnClass = ArcherClass;
+    // 3. 选择蓝图类
+    TSubclassOf<ABaseUnit> SpawnClass = nullptr;
+    if (Type == EUnitType::Soldier) SpawnClass = SoldierClass;
+    else if (Type == EUnitType::Archer) SpawnClass = ArcherClass;
 
-	// 如果蓝图没配，或者 GridManager 没放，就失败
-	if (!SpawnClass || !GridManager)
-	{
-		UE_LOG(LogTemp, Error, TEXT("SpawnClass not set in BP_RTSGameMode or GridManager missing!"));
-		return false;
-	}
+    if (!SpawnClass || !GridManager) return false;
 
-	// 3. 扣钱
-	if (GI) GI->PlayerGold -= Cost;
+    // ---------------------------------------------------------
+    // 通用高度计算 (兼容 Pawn 和 Character)
+    // ---------------------------------------------------------
 
-	// 4. 计算世界坐标
-	FVector SpawnLoc = GridManager->GridToWorld(GridX, GridY);
-	SpawnLoc.Z += 100.0f; // 稍微抬高防止卡住
+    float SpawnZOffset = 100.0f; // 默认备用高度
 
-	// 5. 生成单位
-	ABaseUnit* NewUnit = GetWorld()->SpawnActor<ABaseUnit>(SpawnClass, SpawnLoc, FRotator::ZeroRotator);
-	if (NewUnit)
-	{
-		NewUnit->TeamID = ETeam::Player; // 标记为玩家阵营
+    // 获取默认对象 (CDO)
+    ABaseUnit* DefaultUnit = SpawnClass->GetDefaultObject<ABaseUnit>();
+    if (DefaultUnit)
+    {
+        // 尝试找胶囊体组件 (不管它是 Character 还是 Pawn，只要有这个组件就行)
+        UCapsuleComponent* UnitCapsule = DefaultUnit->FindComponentByClass<UCapsuleComponent>();
 
-		// 告诉 GridManager 这里有人了
-		GridManager->SetTileBlocked(GridX, GridY, true);
-		return true;
-	}
+        if (UnitCapsule)
+        {
+            // 找到了胶囊体，用它的半高
+            SpawnZOffset = UnitCapsule->GetScaledCapsuleHalfHeight();
+        }
+        else
+        {
+            // 如果没胶囊体(比如是方块)，尝试算整个物体的边界高度
+            FVector Origin, BoxExtent;
+            DefaultUnit->GetActorBounds(true, Origin, BoxExtent);
+            if (BoxExtent.Z > 0)
+            {
+                SpawnZOffset = BoxExtent.Z + 2.0f;
+            }
+        }
+    }
 
-	return false;
+    // 4. 计算坐标
+    FVector SpawnLoc = GridManager->GridToWorld(GridX, GridY);
+    SpawnLoc.Z += SpawnZOffset; // 使用算出来的高度
+
+    // 5. 生成
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    ABaseUnit* NewUnit = GetWorld()->SpawnActor<ABaseUnit>(SpawnClass, SpawnLoc, FRotator::ZeroRotator, SpawnParams);
+    if (NewUnit)
+    {
+        if (GI) GI->PlayerGold -= Cost;
+        NewUnit->TeamID = ETeam::Player;
+        GridManager->SetTileBlocked(GridX, GridY, true);
+        return true;
+    }
+
+    return false;
 }
 
 void ARTSGameMode::StartBattlePhase()
 {
 	CurrentState = EGameState::Battle;
 
-	// 遍历所有单位，告诉它们“开打了”
+	// 遍历所有单位，激活 AI
 	for (TActorIterator<ABaseUnit> It(GetWorld()); It; ++It)
 	{
 		if (*It) (*It)->SetUnitActive(true);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Battle Started!"));
+	UE_LOG(LogTemp, Log, TEXT("Battle Phase Started!"));
 }
 
 void ARTSGameMode::RestartLevel()
 {
+	// 重新加载当前关卡
 	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
 }
 
-// 这就是你报错缺少的函数实现
 void ARTSGameMode::OnActorKilled(AActor* Victim, AActor* Killer)
 {
-	// 可以在这里写胜负逻辑
-	UE_LOG(LogTemp, Warning, TEXT("Actor Killed: %s"), *Victim->GetName());
+	if (!Victim) return;
 
+	UE_LOG(LogTemp, Log, TEXT("Actor Killed: %s"), *Victim->GetName());
+
+	// 检查胜负条件
 	CheckWinCondition();
 }
 
 void ARTSGameMode::CheckWinCondition()
 {
-	// 简单的示例：检查是否还有敌人
-	// 实际逻辑由你根据需求扩充
+	// 示例逻辑：
+	// 1. 统计场上还剩多少敌人
+	// 2. 统计场上还剩多少玩家单位
+	// 3. 如果某一方数量为 0，调用 FinishGame()
 }
