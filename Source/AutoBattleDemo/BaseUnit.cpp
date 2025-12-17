@@ -3,6 +3,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h" // 用于遍历 Actor
 #include "Components/CapsuleComponent.h" 
+// 新增：引入调试绘图头文件
+#include "DrawDebugHelpers.h" 
 
 ABaseUnit::ABaseUnit()
 {
