@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "RTSCoreTypes.h"
+#include "BaseBuilding.h"
 #include "RTSGameMode.generated.h"
 
 UCLASS()
@@ -19,6 +20,10 @@ public:
 	// 1. 尝试购买并放置单位 (注意：这里补全了 GridX 和 GridY 参数)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 		bool TryBuyUnit(EUnitType Type, int32 Cost, int32 GridX, int32 GridY);
+	// 建造建筑 ---
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+		bool TryBuildBuilding(EBuildingType Type, int32 Cost, int32 GridX, int32 GridY);
+
 
 	// 2. 玩家点击“开始战斗”
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
@@ -36,6 +41,15 @@ public:
 	// 5. 检查是否胜利
 	void CheckWinCondition();
 
+	// 保存当前布阵并前往战斗关卡
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+		void SaveAndStartBattle(FName LevelName);
+
+	// 在战斗关卡开始时调用：生成带来的兵
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+		void LoadAndSpawnUnits();
+
+
 protected:
 	// 当前游戏状态
 	UPROPERTY(BlueprintReadOnly, Category = "GameFlow")
@@ -45,10 +59,29 @@ protected:
 	UPROPERTY()
 		class AGridManager* GridManager;
 
-	// 配置：不同兵种的蓝图类 (用于 Spawn)
+	// 不同兵种的蓝图类 (用于 Spawn)
+	
+
 	UPROPERTY(EditDefaultsOnly, Category = "Classes")
 		TSubclassOf<class ABaseUnit> SoldierClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Classes")
 		TSubclassOf<class ABaseUnit> ArcherClass;
+
+	// 巨人与炸弹人
+	UPROPERTY(EditDefaultsOnly, Category = "Classes")
+		TSubclassOf<class ABaseUnit> GiantClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Classes")
+		TSubclassOf<class ABaseUnit> BoomerClass;
+
+	// 建筑蓝图配置 ---
+	UPROPERTY(EditDefaultsOnly, Category = "Classes")
+		TSubclassOf<class ABaseBuilding> DefenseTowerClass; // 防御塔蓝图
+
+	UPROPERTY(EditDefaultsOnly, Category = "Classes")
+		TSubclassOf<class ABaseBuilding> GoldMineClass;     // 金矿蓝图
+
+	UPROPERTY(EditDefaultsOnly, Category = "Classes")
+		TSubclassOf<class ABaseBuilding> HQClass; // 大本营
 };

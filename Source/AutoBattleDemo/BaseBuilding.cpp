@@ -1,58 +1,48 @@
 #include "BaseBuilding.h"
+#include "Components/StaticMeshComponent.h"
 
-// 构造函数：负责初始化组件和默认值
 ABaseBuilding::ABaseBuilding()
 {
-    // 允许该 Actor 每帧 Tick（如果是静态建筑，通常可以设为 false 以优化性能）
-    PrimaryActorTick.bCanEverTick = true;
-
-    // 1. 初始化模型组件
+    // 1. 初始化组件
+    // 注意：BaseGameEntity 继承自 Pawn，可能自带了 RootComponent。
+    // 这里我们强制把 Mesh 设为根，或者挂在父类的根下面。
+    // 为了保险，我们新建一个 Mesh 并设为根。
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BuildingMesh"));
-    RootComponent = MeshComp; // 把模型设为根组件
+    RootComponent = MeshComp;
 
-    // 2. 初始化血量默认值
-    MaxHealth = 100.0f;
+    // 2. 初始化属性
+    // MaxHealth = 1000.0f; // 可以设置父类的属性
+    // CurrentHealth = MaxHealth;
+
+    Level = 1;
+    MaxLevel = 3;
 }
 
-// 游戏开始时执行一次
 void ABaseBuilding::BeginPlay()
 {
     Super::BeginPlay();
-
-    // 可以在这里打印一条日志，证明代码跑起来了
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("BaseBuilding Created!"));
-    }
-}
-
-// 每帧执行
-void ABaseBuilding::Tick(float DeltaTime)
-{
-    Super::Tick(DeltaTime);
-
+    // 可以在这里根据 Level 设置初始材质颜色
 }
 
 void ABaseBuilding::NotifyActorOnClicked(FKey ButtonPressed)
 {
-    Super::NotifyActorOnClicked(ButtonPressed);
+    // 这里不要再写“点击扣血”了，那是之前的测试代码。
+    // 现在的逻辑应该是：点击显示“升级”UI
+    UE_LOG(LogTemp, Log, TEXT("Building Clicked! Level: %d"), Level);
+}
 
-    // 1. 扣血逻辑
-    MaxHealth -= 50.0f;
+void ABaseBuilding::Upgrade()
+{
+    if (Level >= MaxLevel) return;
 
-    // 2. 打印日志 (C++ 里的 printf)
-    if (GEngine)
-    {
-        FString Msg = FString::Printf(TEXT("Ouch! Health: %f"), MaxHealth);
-        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, Msg);
-    }
+    Level++;
 
-    // 3. 死亡逻辑
-    if (MaxHealth <= 0.0f)
-    {
-        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Building Destroyed!"));
+    // 1. 提升属性 (数值随便定)
+    MaxHealth += 500.0f;
+    CurrentHealth = MaxHealth; // 升级补满血
 
-        // 销毁 Actor
-        Destroy();
-    }
+    // 2. 视觉变化 (示例：变大一点，或者换材质)
+    SetActorScale3D(GetActorScale3D() * 1.2f);
+
+    UE_LOG(LogTemp, Warning, TEXT("Building Upgraded to Level %d! HP is now %f"), Level, MaxHealth);
 }

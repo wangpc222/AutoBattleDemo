@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "RTSCoreTypes.h"
 #include "RTSGameInstance.generated.h"
 
 UCLASS()
@@ -21,10 +22,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Data")
         int32 PlayerElixir = 5000;
 
-        // 人口
+    // 人口
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Data")
         int32 CurrentPopulation = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Data")
         int32 MaxPopulation = 20;
+
+    // 玩家的军队阵容
+    UPROPERTY(BlueprintReadWrite, Category = "SaveData")
+        TArray<FUnitSaveData> PlayerArmy;
 };
