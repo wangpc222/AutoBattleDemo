@@ -1,9 +1,11 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
+
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "LevelDataAsset.generated.h"
 
-// 单个格子的建筑配置信息
 USTRUCT(BlueprintType)
 struct FLevelGridConfig
 {
@@ -34,8 +36,7 @@ struct FLevelGridConfig
 UCLASS()
 class AUTOBATTLEDEMO_API ULevelDataAsset : public UDataAsset
 {
-    GENERATED_BODY()
-
+	GENERATED_BODY()
 public:
     // 网格宽度（X方向格子数量）
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Settings", meta = (MinValue = 10))
