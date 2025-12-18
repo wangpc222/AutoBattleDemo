@@ -6,11 +6,11 @@ ABaseGameEntity::ABaseGameEntity()
 {
     PrimaryActorTick.bCanEverTick = false;
 
-    // ´´½¨¸ù×é¼ş
+    // åˆ›å»ºæ ¹ç»„ä»¶
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 
-    // Ä¬ÈÏÖµ
-    MaxHealth = 100.0f;
+    // é»˜è®¤å€¼
+    MaxHealth = 500.0f; // å»ºç­‘è¡€é‡æ›´é«˜
     CurrentHealth = MaxHealth;
     TeamID = ETeam::Enemy;
     bIsTargetable = true;
@@ -20,7 +20,7 @@ void ABaseGameEntity::BeginPlay()
 {
     Super::BeginPlay();
 
-    // È·±£ÑªÁ¿³õÊ¼»¯
+    // ç¡®ä¿è¡€é‡åˆå§‹åŒ–
     CurrentHealth = MaxHealth;
 
     UE_LOG(LogTemp, Log, TEXT("[Entity] %s spawned | HP: %f | Team: %d | Targetable: %d"),
@@ -52,10 +52,10 @@ void ABaseGameEntity::Die()
 {
     UE_LOG(LogTemp, Warning, TEXT("[Entity] %s died!"), *GetName());
 
-    // µ÷ÓÃÀ¶Í¼¿ÉÖØĞ´µÄËÀÍöÊÂ¼ş
+    // è°ƒç”¨è“å›¾å¯é‡å†™çš„æ­»äº¡äº‹ä»¶
     OnDeath();
 
-    // Í¨Öª GameMode
+    // é€šçŸ¥ GameMode
     ARTSGameMode* GM = Cast<ARTSGameMode>(UGameplayStatics::GetGameMode(this));
     if (GM)
     {
@@ -67,5 +67,5 @@ void ABaseGameEntity::Die()
 
 void ABaseGameEntity::OnDeath_Implementation()
 {
-    // Ä¬ÈÏÊµÏÖÎª¿Õ£¬×ÓÀà¿ÉÒÔÖØĞ´Ìí¼ÓÌØĞ§¡¢ÒôĞ§µÈ
+    // é»˜è®¤å®ç°ä¸ºç©ºï¼Œå­ç±»å¯ä»¥é‡å†™æ·»åŠ ç‰¹æ•ˆã€éŸ³æ•ˆç­‰
 }

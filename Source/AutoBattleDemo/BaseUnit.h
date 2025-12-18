@@ -5,13 +5,13 @@
 #include "RTSCoreTypes.h"
 #include "BaseUnit.generated.h"
 
-// Ê¿±ø×´Ì¬»ú
+// å£«å…µçŠ¶æ€æœº
 UENUM()
 enum class EUnitState : uint8
 {
-    Idle,       // Õ¾×®
-    Moving,     // ÒÆ¶¯ÖĞ
-    Attacking   // ¹¥»÷ÖĞ
+    Idle,       // ç«™æ¡©
+    Moving,     // ç§»åŠ¨ä¸­
+    Attacking   // æ”»å‡»ä¸­
 };
 
 UCLASS()
@@ -24,15 +24,15 @@ public:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
 
-    // --- ±øÖÖÀàĞÍ ---
+    // --- å…µç§ç±»å‹ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Unit")
         EUnitType UnitType;
 
-    // --- ¹© GameMode µ÷ÓÃ ---
+    // --- ä¾› GameMode è°ƒç”¨ ---
     UFUNCTION(BlueprintCallable)
         void SetUnitActive(bool bActive);
 
-    // --- Õ½¶·ÊôĞÔ ---
+    // --- æˆ˜æ–—å±æ€§ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
         float AttackRange;
 
@@ -45,7 +45,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
         float MoveSpeed;
 
-    // --- ×é¼ş ---
+    // --- ç»„ä»¶ ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         class UCapsuleComponent* CapsuleComp;
 
@@ -53,7 +53,7 @@ public:
         class UStaticMeshComponent* MeshComp;
 
 protected:
-    // --- ºËĞÄAIÂß¼­£¨¿É±»×ÓÀàÖØĞ´£© ---
+    // --- æ ¸å¿ƒAIé€»è¾‘ï¼ˆå¯è¢«å­ç±»é‡å†™ï¼‰ ---
 
     virtual AActor* FindClosestEnemyBuilding();
 
@@ -63,23 +63,23 @@ protected:
 
     virtual void PerformAttack();
 
-    // µ±Ç°×´Ì¬
+    // å½“å‰çŠ¶æ€
     EUnitState CurrentState;
 
-    // Â·¾¶»º´æ
+    // è·¯å¾„ç¼“å­˜
     TArray<FVector> PathPoints;
     int32 CurrentPathIndex;
 
-    // µ±Ç°Ä¿±ê
+    // å½“å‰ç›®æ ‡
     UPROPERTY()
         AActor* CurrentTarget;
 
-    // ¹¥»÷¼ÆÊ±
+    // æ”»å‡»è®¡æ—¶
     float LastAttackTime;
 
-    // GridManager ÒıÓÃ
+    // GridManager å¼•ç”¨
     class AGridManager* GridManagerRef;
 
-    // AI ¼¤»î×´Ì¬
+    // AI æ¿€æ´»çŠ¶æ€
     bool bIsActive;
 };

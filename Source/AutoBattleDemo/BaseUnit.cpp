@@ -11,24 +11,24 @@ ABaseUnit::ABaseUnit()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // 创建胶囊体
+    // 鍒涘缓鑳跺泭浣�
     CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComp"));
     CapsuleComp->SetupAttachment(RootComponent);
     CapsuleComp->InitCapsuleSize(40.0f, 90.0f);
     CapsuleComp->SetCollisionProfileName(TEXT("Pawn"));
 
-    // 创建模型
+    // 鍒涘缓妯″瀷
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
     MeshComp->SetupAttachment(CapsuleComp);
 
-    // 默认属性
+    // 榛樿灞炴��
     MaxHealth = 100.0f;
     AttackRange = 150.0f;
     Damage = 10.0f;
     MoveSpeed = 300.0f;
     AttackInterval = 1.0f;
 
-    UnitType = EUnitType::Barbarian; // 默认野蛮人
+    UnitType = EUnitType::Barbarian; // 榛樿閲庤洰浜�
     CurrentState = EUnitState::Idle;
     LastAttackTime = 0.0f;
     CurrentPathIndex = 0;
@@ -44,7 +44,7 @@ void ABaseUnit::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 获取 GridManager
+    // 鑾峰彇 GridManager
     for (TActorIterator<AGridManager> It(GetWorld()); It; ++It)
     {
         GridManagerRef = *It;
@@ -75,15 +75,28 @@ void ABaseUnit::Tick(float DeltaTime)
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
+                    UE_LOG(LogTemp, Log, TEXT("[Unit] %s in attack range, switching to Attack"), *GetName());
                 }
                 else
                 {
+                    UE_LOG(LogTemp, Log, TEXT("[Unit] %s requesting path (distance: %f)"), *GetName(), Distance);
                     RequestPathToTarget();
                     if (PathPoints.Num() > 0)
                     {
                         CurrentState = EUnitState::Moving;
+                        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s moving with %d waypoints"),
+                            *GetName(), PathPoints.Num());
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Error, TEXT("[Unit] %s failed to find path!"), *GetName());
                     }
                 }
+            }
+            else
+            {
+                // 没有找到任何敌方建筑（可能已经全部摧毁）
+                UE_LOG(LogTemp, Warning, TEXT("[Unit] %s found NO enemy buildings!"), *GetName());
             }
         }
         else
@@ -91,7 +104,8 @@ void ABaseUnit::Tick(float DeltaTime)
             ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
             if (!TargetEntity || TargetEntity->CurrentHealth <= 0 || CurrentTarget->IsPendingKill())
             {
-                CurrentTarget = nullptr;
+                UE_LOG(LogTemp, Log, TEXT("[Unit] %s target destroyed, searching for new target"), *GetName());
+                CurrentTarget = nullptr; // 目标失效，重新寻找
             }
         }
         break;
@@ -142,6 +156,7 @@ void ABaseUnit::SetUnitActive(bool bActive)
         CurrentState = EUnitState::Idle;
         CurrentTarget = nullptr;
         PathPoints.Empty();
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] %s AI DEACTIVATED"), *GetName());
     }
 }
 
@@ -255,6 +270,7 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
                 if (Distance <= AttackRange)
                 {
                     CurrentState = EUnitState::Attacking;
+                    UE_LOG(LogTemp, Warning, TEXT("[Unit] %s path complete, starting attack!"), *GetName());
                 }
                 else
                 {
@@ -284,6 +300,7 @@ void ABaseUnit::PerformAttack()
     ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
     if (!TargetEntity || TargetEntity->CurrentHealth <= 0)
     {
+        UE_LOG(LogTemp, Log, TEXT("[Unit] %s target destroyed during attack"), *GetName());
         CurrentTarget = nullptr;
         CurrentState = EUnitState::Idle;
         return;

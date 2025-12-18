@@ -4,8 +4,8 @@
 #include "RTSCoreTypes.h"
 #include "BaseGameEntity.generated.h"
 
-// ËùÓĞÓÎÏ·ÊµÌåµÄ»ùÀà£¨±øÖÖºÍ½¨ÖşµÄ¹²Í¬¸¸Àà£©
-// ĞŞÕı£º¼Ì³Ğ AActor ¶ø²»ÊÇ APawn
+// æ‰€æœ‰æ¸¸æˆå®ä½“çš„åŸºç±»ï¼ˆå…µç§å’Œå»ºç­‘çš„å…±åŒçˆ¶ç±»ï¼‰
+// ä¿®æ­£ï¼šç»§æ‰¿ AActor è€Œä¸æ˜¯ APawn
 UCLASS()
 class AUTOBATTLEDEMO_API ABaseGameEntity : public AActor
 {
@@ -16,7 +16,7 @@ public:
 
     virtual void BeginPlay() override;
 
-    // --- ºËĞÄÊôĞÔ ---
+    // --- æ ¸å¿ƒå±æ€§ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
         float MaxHealth;
 
@@ -26,17 +26,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
         ETeam TeamID;
 
-    // ±ê¼Ç£ºÊÇ·ñ¿ÉÒÔ±»¹¥»÷
+    // æ ‡è®°ï¼šæ˜¯å¦å¯ä»¥è¢«æ”»å‡»
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
         bool bIsTargetable = true;
 
-    // --- ½Ó¿Ú ---
+    // --- æ¥å£ ---
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
         class AController* EventInstigator, AActor* DamageCauser) override;
 
     virtual void Die();
 
-    // Ğéº¯Êı£º×ÓÀà¿ÉÒÔÖØĞ´ËÀÍöÂß¼­
+    // è™šå‡½æ•°ï¼šå­ç±»å¯ä»¥é‡å†™æ­»äº¡é€»è¾‘
     UFUNCTION(BlueprintNativeEvent, Category = "Entity")
         void OnDeath();
     virtual void OnDeath_Implementation();
