@@ -1,18 +1,22 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "GameFramework/Pawn.h" // ÓÃ Pawn ±È Actor ºÃ£¬·½±ãÀ©Õ¹ÒÆ¶¯
+#include "GameFramework/Actor.h"
 #include "RTSCoreTypes.h"
 #include "BaseGameEntity.generated.h"
 
+// æ‰€æœ‰æ¸¸æˆå®ä½“çš„åŸºç±»ï¼ˆå…µç§å’Œå»ºç­‘çš„å…±åŒçˆ¶ç±»ï¼‰
+// ä¿®æ­£ï¼šç»§æ‰¿ AActor è€Œä¸æ˜¯ APawn
 UCLASS()
-class AUTOBATTLEDEMO_API ABaseGameEntity : public APawn
+class AUTOBATTLEDEMO_API ABaseGameEntity : public AActor
 {
     GENERATED_BODY()
 
 public:
     ABaseGameEntity();
 
-    // --- ÊôĞÔ ---
+    virtual void BeginPlay() override;
+
+    // --- æ ¸å¿ƒå±æ€§ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
         float MaxHealth;
 
@@ -20,19 +24,20 @@ public:
         float CurrentHealth;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-        ETeam TeamID; // Çø·ÖÍæ¼Ò»¹ÊÇµĞÈË
+        ETeam TeamID;
 
-        // --- ½Ó¿Ú ---
-        // ÊÜÉËÂß¼­
-    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+    // æ ‡è®°ï¼šæ˜¯å¦å¯ä»¥è¢«æ”»å‡»
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+        bool bIsTargetable = true;
 
-    // ËÀÍöÂß¼­£¨¹© GameMode ¼àÌı£©
+    // --- æ¥å£ ---
+    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+        class AController* EventInstigator, AActor* DamageCauser) override;
+
     virtual void Die();
 
-    // ÉõÖÁ¿ÉÒÔ¼ÓÒ»¸öÎ¯ÍĞ£¬µ±ËÀÍöÊ±Í¨Öª GameMode ¼ì²éÊ¤ÀûÌõ¼ş
-    // FOnEntityDiedSignature OnDeath; 
-    
-    // --- ×é¼ş ---
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-        class UStaticMeshComponent* StaticMeshComponent;
+    // è™šå‡½æ•°ï¼šå­ç±»å¯ä»¥é‡å†™æ­»äº¡é€»è¾‘
+    UFUNCTION(BlueprintNativeEvent, Category = "Entity")
+        void OnDeath();
+    virtual void OnDeath_Implementation();
 };

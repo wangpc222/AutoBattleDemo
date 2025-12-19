@@ -2,7 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "BaseGameEntity.h"
+#include "RTSCoreTypes.h"
 #include "BaseBuilding.generated.h"
+
 
 UCLASS()
 class AUTOBATTLEDEMO_API ABaseBuilding : public ABaseGameEntity
@@ -13,28 +15,51 @@ public:
     ABaseBuilding();
 
     virtual void BeginPlay() override;
+    virtual void Tick(float DeltaTime) override;
 
-    // ½¨ÖşÌØÓĞµÄ½»»¥£º±»µã»÷Ê±¿ÉÄÜ´¥·¢Éı¼¶²Ëµ¥ (ÔİÊ±±£Áô)
-    virtual void NotifyActorOnClicked(FKey ButtonPressed = EKeys::LeftMouseButton) override;
+    // --- å»ºç­‘å±æ€§ ---
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        EBuildingType BuildingType;
 
-    // --- ºËĞÄ±äÁ¿ ---
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        int32 BuildingLevel;
 
-    // ¿ÉÊÓ»¯×é¼ş
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        int32 MaxLevel;
+
+    // --- ç½‘æ ¼åæ ‡ï¼ˆå…³é”®ï¼ä¾›ç‚¸å¼¹äººä½¿ç”¨ï¼‰ ---
+    // è¿™ä¸ªå»ºç­‘åœ¨æˆå‘˜Açš„GridManagerä¸­å æ®çš„ç½‘æ ¼åæ ‡
+    // æˆå‘˜Cåœ¨ç”Ÿæˆå»ºç­‘æ—¶éœ€è¦è®¾ç½®è¿™ä¸¤ä¸ªå€¼
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
+        int32 GridX;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
+        int32 GridY;
+
+    // --- å‡çº§ç³»ç»Ÿ ---
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        void LevelUp();
+
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        void GetUpgradeCost(int32& OutGold, int32& OutElixir);
+
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        bool CanUpgrade() const;
+
+    // --- ç‚¹å‡»äº¤äº’ ---
+    virtual void NotifyActorOnClicked(FKey ButtonPressed) override;
+
+    // --- ç»„ä»¶ ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         class UStaticMeshComponent* MeshComp;
 
-    // ? É¾³ı MaxHealth£¡ÒòÎª BaseGameEntity ÀïÒÑ¾­ÓĞÁË£¡
-    // ? É¾³ı TeamID£¡ÒòÎª BaseGameEntity ÀïÒ²ÓĞÁË£¡
+protected:
+    virtual void ApplyLevelUpBonus();
 
-    // --- ĞÂÔö£ºµÈ¼¶ÏµÍ³ ---
+    UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
+        int32 BaseUpgradeGoldCost;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level")
-        int32 Level;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level")
-        int32 MaxLevel;
-
-    // Éı¼¶º¯Êı£ºÌáÉıÊôĞÔ£¬¿ÛÇ®(ÔÚÍâ²¿¿Û)£¬¸Ä±äÍâ¹Û
-    UFUNCTION(BlueprintCallable, Category = "Level")
-        void Upgrade();
+    UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
+        int32 BaseUpgradeElixirCost;
 };

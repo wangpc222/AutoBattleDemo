@@ -1,167 +1,102 @@
-// GridManager.h£¨½Ó¿Ú±£³Ö²»±ä£¬½ö²¹³ä±ØÒªÉùÃ÷£©
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "BaseBuilding.h"
 #include "GridManager.generated.h"
+// å‰å‘å£°æ˜
+class ULevelDataAsset;
+class ABaseBuilding;
 
-/**
- * Íø¸ñ½Úµã½á¹¹Ìå£¬´æ´¢µ¥¸ö¸ñ×ÓµÄËùÓĞÊı¾İ
- */
 USTRUCT(BlueprintType)
 struct FGridNode
 {
     GENERATED_BODY()
 
-        // ¸ñ×ÓÔÚÍø¸ñÖĞµÄX×ø±ê
         UPROPERTY()
-        int32 X;
-    // ¸ñ×ÓÔÚÍø¸ñÖĞµÄY×ø±ê
+        int32 X;                  // ç½‘æ ¼Xåæ ‡
     UPROPERTY()
-        int32 Y;
-    // ÊÇ·ñ±»×èµ²£¨Èç½¨Öş¡¢ÕÏ°­Îï£©
+        int32 Y;                  // ç½‘æ ¼Yåæ ‡
     UPROPERTY()
-        bool bIsBlocked;
-    // ¸ñ×ÓÖĞĞÄµãµÄÊÀ½ç×ø±ê
+        bool bIsBlocked;          // æ˜¯å¦é˜»æŒ¡
     UPROPERTY()
-        FVector WorldLocation;
-    // µØĞÎ³É±¾£¨Ó°ÏìÒÆ¶¯ÏûºÄ£¬Æ½µØ1.0£¬ÕÓÔóµÈ¿ÉÉè¸ü¸ßÖµ£©
+        FVector WorldLocation;    // ä¸–ç•Œåæ ‡ä¸­å¿ƒç‚¹
     UPROPERTY()
-        float Cost;
+        float Cost;               // å¯»è·¯æˆæœ¬ï¼ˆå¦‚åœ°å½¢æƒé‡ï¼‰
 };
 
-/**
- * Íø¸ñ¹ÜÀíÆ÷Àà£¬¸ºÔğÍø¸ñÉú³É¡¢×ø±ê×ª»»ºÍÂ·¾¶²éÕÒ
- */
+// æ ¼å­é˜»æŒ¡çŠ¶æ€å˜åŒ–å§”æ‰˜ï¼ˆä¾›å•ä½é‡æ–°å¯»è·¯ï¼‰
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTileBlockedChanged, int32 /*GridX*/, int32 /*GridY*/);
+
 UCLASS()
 class AUTOBATTLEDEMO_API AGridManager : public AActor
 {
     GENERATED_BODY()
 
 protected:
-    // --- ÉùÃ÷ÓÎÏ·¿ªÊ¼º¯Êı ---
     virtual void BeginPlay() override;
 
 public:
     AGridManager();
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        bool IsTileWalkable(int32 X, int32 Y);
-    /**
-     * Éú³ÉÍø¸ñ²¢³õÊ¼»¯ËùÓĞ½Úµã
-     * @param Width Íø¸ñ¿í¶È£¨X·½Ïò¸ñ×ÓÊıÁ¿£©
-     * @param Height Íø¸ñ¸ß¶È£¨Y·½Ïò¸ñ×ÓÊıÁ¿£©
-     * @param CellSize Ã¿¸ö¸ñ×ÓµÄ³ß´ç£¨ÊÀ½çµ¥Î»£©
-     */
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        void GenerateGrid(int32 Width, int32 Height, float CellSize);
 
-    /**
-     * ²éÕÒ´ÓÆğµãµ½ÖÕµãµÄÂ·¾¶£¨A*Ëã·¨ÊµÏÖ£©
-     * @param StartWorldLoc ÆğµãÊÀ½ç×ø±ê
-     * @param EndWorldLoc ÖÕµãÊÀ½ç×ø±ê
-     * @return Â·¾¶µãÁĞ±í£¨ÊÀ½ç×ø±ê£©£¬ÈôÕÒ²»µ½Â·¾¶Ôò·µ»Ø¿ÕÊı×é
-     */
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        TArray<FVector> FindPath(const FVector& StartWorldLoc, const FVector& EndWorldLoc);
+    // å…³å¡æ•°æ®åŠ è½½ï¼šä»LevelDataAssetåˆå§‹åŒ–ç½‘æ ¼å’Œå»ºç­‘
+    UFUNCTION(BlueprintCallable, Category = "Level")
+        void LoadLevelFromDataAsset(ULevelDataAsset* LevelData);
 
-    /**
-     * ÉèÖÃÖ¸¶¨¸ñ×ÓµÄ×èµ²×´Ì¬
-     * @param GridX ¸ñ×ÓX×ø±ê
-     * @param GridY ¸ñ×ÓY×ø±ê
-     * @param bBlocked ÊÇ·ñ×èµ²
-     */
+    // ç½‘æ ¼æ ¸å¿ƒåŠŸèƒ½
     UFUNCTION(BlueprintCallable, Category = "Grid")
-        void SetTileBlocked(int32 GridX, int32 GridY, bool bBlocked);
+        bool IsTileWalkable(int32 X, int32 Y);                      // æ£€æŸ¥æ ¼å­æ˜¯å¦å¯é€šè¡Œ
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        void GenerateGrid(int32 Width, int32 Height, float CellSize); // ç”Ÿæˆç½‘æ ¼æ•°æ®
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        TArray<FVector> FindPath(const FVector& StartWorldLoc, const FVector& EndWorldLoc); // å¯»è·¯ç®—æ³•
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        void SetTileBlocked(int32 GridX, int32 GridY, bool bBlocked); // è®¾ç½®æ ¼å­é˜»æŒ¡çŠ¶æ€ï¼ˆåç§°ä¸å˜ï¼‰
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        FVector GridToWorld(int32 GridX, int32 GridY) const;          // ç½‘æ ¼åæ ‡è½¬ä¸–ç•Œåæ ‡
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        bool WorldToGrid(const FVector& WorldLoc, int32& OutGridX, int32& OutGridY) const; // ä¸–ç•Œåæ ‡è½¬ç½‘æ ¼åæ ‡
+    UFUNCTION(BlueprintCallable, Category = "Grid")
+        void DrawGridVisuals(int32 HoverX, int32 HoverY);             // ç»˜åˆ¶ç½‘æ ¼è°ƒè¯• visuals
+    // æ–°å¢ï¼šç©å®¶å¤§æœ¬è¥å»ºç­‘ç±»ï¼ˆåœ¨è“å›¾ä¸­æŒ‡å®šå…·ä½“ç±»å‹ï¼‰
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Setup")
+        TSubclassOf<ABaseBuilding> PlayerBaseClass;
+    // æ–°å¢ï¼šæ•Œæ–¹å¤§æœ¬è¥å»ºç­‘ç±»ï¼ˆåœ¨è“å›¾ä¸­æŒ‡å®šå…·ä½“ç±»å‹ï¼‰
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Setup")
+        TSubclassOf<ABaseBuilding> EnemyBaseClass;
 
-    /**
-     * ½«Íø¸ñ×ø±ê×ª»»ÎªÊÀ½ç×ø±ê
-     * @param GridX ¸ñ×ÓX×ø±ê
-     * @param GridY ¸ñ×ÓY×ø±ê
-     * @return ¶ÔÓ¦¸ñ×ÓÖĞĞÄµãµÄÊÀ½ç×ø±ê
-     */
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        FVector GridToWorld(int32 GridX, int32 GridY) const;
-
-    /**
-     * ½«ÊÀ½ç×ø±ê×ª»»ÎªÍø¸ñ×ø±ê
-     * @param WorldLoc ÊÀ½ç×ø±ê
-     * @param OutGridX Êä³ö¸ñ×ÓX×ø±ê
-     * @param OutGridY Êä³ö¸ñ×ÓY×ø±ê
-     * @return ÊÇ·ñ³É¹¦×ª»»£¨×ø±êÔÚÍø¸ñ·¶Î§ÄÚ£©
-     */
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        bool WorldToGrid(const FVector& WorldLoc, int32& OutGridX, int32& OutGridY) const;
-
-    // Ã¿Ö¡µ÷ÓÃµÄ»æÖÆº¯Êı ---
-    // HoverX, HoverY: µ±Ç°Êó±êĞüÍ£µÄ¸ñ×Ó×ø±ê (Èç¹ûÃ»ÓĞĞüÍ£´« -1)
-    UFUNCTION(BlueprintCallable, Category = "Grid")
-        void DrawGridVisuals(int32 HoverX, int32 HoverY);
+        // é˜»æŒ¡çŠ¶æ€å˜åŒ–é€šçŸ¥ï¼ˆä¾›å¤–éƒ¨ç»‘å®šï¼Œå¦‚å•ä½é‡æ–°å¯»è·¯ï¼‰
+    FOnTileBlockedChanged OnTileBlockedChanged;
 
 private:
-    /**
-     * A*Ëã·¨½Úµã½á¹¹Ìå£¬ÓÃÓÚÂ·¾¶¼ÆËã
-     */
+    // A*ç®—æ³•å†…éƒ¨èŠ‚ç‚¹ï¼ˆçº¯é€»è¾‘ç”¨ï¼Œä¸æš´éœ²ç»™è“å›¾ï¼‰
     struct FAStarNode
     {
-        int32 X;               // ½ÚµãX×ø±ê
-        int32 Y;               // ½ÚµãY×ø±ê
-        float G;               // Æğµãµ½µ±Ç°½ÚµãµÄÊµ¼Ê³É±¾
-        float H;               // µ±Ç°½Úµãµ½ÖÕµãµÄÔ¤¹À³É±¾£¨Æô·¢Ê½£©
-        TWeakPtr<FAStarNode> Parent;  // ¸¸½Úµã£¨ÓÃÓÚ»ØËİÂ·¾¶£©
+        int32 X;
+        int32 Y;
+        float G; // èµ·ç‚¹åˆ°å½“å‰èŠ‚ç‚¹çš„å®é™…æˆæœ¬
+        float H; // é¢„ä¼°åˆ°ç»ˆç‚¹çš„ heuristic æˆæœ¬
+        FAStarNode* Parent;
 
-        // ¼ÆËã×Ü³É±¾£¨F = G + H£©
-        float F() const { return G + H; }
-        // ¹¹Ôìº¯Êı
-        FAStarNode(int32 InX, int32 InY) : X(InX), Y(InY), G(0), H(0) {}
+        float F() const { return G + H; } // æ€»æˆæœ¬
+        FAStarNode(int32 InX, int32 InY) : X(InX), Y(InY), G(0), H(0), Parent(nullptr) {}
     };
 
-    /**
-     * ¼ì²é¸ñ×ÓÊÇ·ñÓĞĞ§£¨ÔÚÍø¸ñ·¶Î§ÄÚÇÒÎ´±»×èµ²£©
-     * @param GridX ¸ñ×ÓX×ø±ê
-     * @param GridY ¸ñ×ÓY×ø±ê
-     * @return ÊÇ·ñÓĞĞ§
-     */
-    bool IsTileValid(int32 GridX, int32 GridY) const;
+    // A*è¾…åŠ©å‡½æ•°
+    FAStarNode* GetLowestFNode(TArray<FAStarNode*>& Nodes); // è·å–Få€¼æœ€å°çš„èŠ‚ç‚¹
+    bool IsTileValid(int32 GridX, int32 GridY) const;       // æ£€æŸ¥åæ ‡æ˜¯å¦åœ¨ç½‘æ ¼èŒƒå›´å†…
+    float GetHeuristicCost(int32 X1, int32 Y1, int32 X2, int32 Y2) const; // è®¡ç®—å¯å‘å¼æˆæœ¬
+    TArray<FIntPoint> GetNeighborNodes(int32 X, int32 Y) const; // è·å–é‚»å±…èŠ‚ç‚¹
+    void OptimizePath(TArray<FIntPoint>& RawPath);           // ä¼˜åŒ–è·¯å¾„ç‚¹ï¼ˆå‡å°‘å†—ä½™èŠ‚ç‚¹ï¼‰
 
-    /**
-     * ¼ÆËãÆô·¢Ê½³É±¾£¨Âü¹ş¶Ù¾àÀë£©
-     * @param X1 ÆğµãX
-     * @param Y1 ÆğµãY
-     * @param X2 ÖÕµãX
-     * @param Y2 ÖÕµãY
-     * @return Æô·¢Ê½³É±¾Öµ
-     */
-    float GetHeuristicCost(int32 X1, int32 Y1, int32 X2, int32 Y2) const;
-
-    /**
-     * »ñÈ¡Ö¸¶¨¸ñ×ÓµÄËùÓĞÓĞĞ§ÁÚ¾Ó½Úµã£¨ËÄ·½Ïò£©
-     * @param X ¸ñ×ÓX×ø±ê
-     * @param Y ¸ñ×ÓY×ø±ê
-     * @return ÁÚ¾Ó½Úµã×ø±êÁĞ±í
-     */
-    TArray<FIntPoint> GetNeighborNodes(int32 X, int32 Y) const;
-
-    /**
-     * ÓÅ»¯Â·¾¶£¨ÒÆ³ıÈßÓà½Úµã£¬Ê¹Â·¾¶¸üÆ½»¬£©
-     * @param RawPath Ô­Ê¼Â·¾¶
-     */
-    void OptimizePath(TArray<FIntPoint>& RawPath);
-
-    // ´æ´¢ËùÓĞÍø¸ñ½Úµã£¨Ò»Î¬Êı×éÄ£Äâ¶şÎ¬£©
+    // ç½‘æ ¼æ•°æ®å­˜å‚¨
     UPROPERTY()
-        TArray<FGridNode> GridNodes;
-    // Íø¸ñ¿í¶È£¨X·½Ïò¸ñ×ÓÊıÁ¿£©
+        TArray<FGridNode> GridNodes;       // æ‰å¹³åŒ–å­˜å‚¨çš„ç½‘æ ¼èŠ‚ç‚¹æ•°ç»„
     UPROPERTY()
-        int32 GridWidthCount;
-    // Íø¸ñ¸ß¶È£¨Y·½Ïò¸ñ×ÓÊıÁ¿£©
+        int32 GridWidthCount;              // ç½‘æ ¼å®½åº¦ï¼ˆXæ–¹å‘æ ¼å­æ•°ï¼‰
     UPROPERTY()
-        int32 GridHeightCount;
-    // Ã¿¸ö¸ñ×ÓµÄ³ß´ç£¨ÊÀ½çµ¥Î»£©
+        int32 GridHeightCount;             // ç½‘æ ¼é«˜åº¦ï¼ˆYæ–¹å‘æ ¼å­æ•°ï¼‰
     UPROPERTY()
-        float TileSize;
-    // µ÷ÊÔ»æÖÆ¿ª¹Ø£¨¿ª·¢Ä£Ê½Ê¹ÓÃ£©
+        float TileSize;                    // å•ä¸ªæ ¼å­çš„å°ºå¯¸ï¼ˆä¸–ç•Œå•ä½ï¼‰
     UPROPERTY(EditAnywhere, Category = "Debug")
-        bool bDrawDebug;
-
-
+        bool bDrawDebug;                   // æ˜¯å¦ç»˜åˆ¶è°ƒè¯•ä¿¡æ¯
 };
