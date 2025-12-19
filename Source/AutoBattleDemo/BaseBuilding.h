@@ -1,4 +1,5 @@
 #pragma once
+
 #include "CoreMinimal.h"
 #include "BaseGameEntity.h"
 #include "RTSCoreTypes.h"
@@ -16,7 +17,7 @@ public:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
 
-    // --- ½¨ÖşÊôĞÔ ---
+    // --- å»ºç­‘å±æ€§ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
         EBuildingType BuildingType;
 
@@ -26,16 +27,16 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
         int32 MaxLevel;
 
-    // --- Íø¸ñ×ø±ê£¨¹Ø¼ü£¡¹©Õ¨µ¯ÈËÊ¹ÓÃ£© ---
-    // Õâ¸ö½¨ÖşÔÚ³ÉÔ±AµÄGridManagerÖĞÕ¼¾İµÄÍø¸ñ×ø±ê
-    // ³ÉÔ±CÔÚÉú³É½¨ÖşÊ±ĞèÒªÉèÖÃÕâÁ½¸öÖµ
+    // --- ç½‘æ ¼åæ ‡ï¼ˆå…³é”®ï¼ä¾›ç‚¸å¼¹äººä½¿ç”¨ï¼‰ ---
+    // è¿™ä¸ªå»ºç­‘åœ¨æˆå‘˜Açš„GridManagerä¸­å æ®çš„ç½‘æ ¼åæ ‡
+    // æˆå‘˜Cåœ¨ç”Ÿæˆå»ºç­‘æ—¶éœ€è¦è®¾ç½®è¿™ä¸¤ä¸ªå€¼
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
         int32 GridX;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
         int32 GridY;
 
-    // --- Éı¼¶ÏµÍ³ ---
+    // --- å‡çº§ç³»ç»Ÿ ---
     UFUNCTION(BlueprintCallable, Category = "Building")
         void LevelUp();
 
@@ -45,10 +46,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Building")
         bool CanUpgrade() const;
 
-    // --- µã»÷½»»¥ ---
+    // --- ç‚¹å‡»äº¤äº’ ---
     virtual void NotifyActorOnClicked(FKey ButtonPressed) override;
 
-    // --- ×é¼ş ---
+    // --- ç»„ä»¶ ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         class UStaticMeshComponent* MeshComp;
 
@@ -57,6 +58,7 @@ protected:
 
     UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
         int32 BaseUpgradeGoldCost;
+
 
     UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
         int32 BaseUpgradeElixirCost;
