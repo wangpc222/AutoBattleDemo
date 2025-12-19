@@ -1,53 +1,62 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "RTSMainHUD.generated.h"
 
-// 前置声明
 class UButton;
 class UTextBlock;
 
 UCLASS()
 class AUTOBATTLEDEMO_API URTSMainHUD : public UUserWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // 初始化函数 (类似 BeginPlay)
-    virtual void NativeConstruct() override;
-
-    // 每帧更新 (类似 Tick)
-    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 protected:
-    // --- 核心技巧：BindWidget ---
-    // 只要你在蓝图里把按钮命名为 "Btn_BuySoldier"，C++ 就会自动绑定它！
+	// --- 资源显示 ---
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* Text_GoldInfo;
 
-    UPROPERTY(meta = (BindWidget))
-        UButton* Btn_BuySoldier;
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* Text_ElixirInfo;
 
-    UPROPERTY(meta = (BindWidget))
-        UButton* Btn_BuyArcher;
+	// --- 按钮：单位 (消耗圣水) ---
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuyBarbarian;
 
-    UPROPERTY(meta = (BindWidget))
-        UButton* Btn_StartBattle;
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuyArcher;
 
-    // --- 按钮点击处理函数 ---
-    UFUNCTION()
-        void OnClickBuySoldier();
+	// 新增：巨人 & 炸弹人
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuyGiant;
 
-    UFUNCTION()
-        void OnClickBuyArcher();
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuyBomber;
 
-    UFUNCTION()
-        void OnClickStartBattle();
+	// --- 按钮：建筑 (消耗金币) ---
+	// 新增：塔 & 矿
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuildTower;
 
-    // 显示金币
-    UPROPERTY(meta = (BindWidget))
-        UTextBlock* Text_GoldInfo;
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_BuildMine;
 
-    // 显示圣水
-    UPROPERTY(meta = (BindWidget))
-        UTextBlock* Text_ElixirInfo;
+	// --- 按钮：流程 ---
+	UPROPERTY(meta = (BindWidget))
+		UButton* Btn_StartBattle;
+
+	// --- 点击事件处理 ---
+	UFUNCTION() void OnClickBuyBarbarian();
+	UFUNCTION() void OnClickBuyArcher();
+	UFUNCTION() void OnClickBuyGiant();
+	UFUNCTION() void OnClickBuyBomber();
+
+	UFUNCTION() void OnClickBuildTower();
+	UFUNCTION() void OnClickBuildMine();
+
+	UFUNCTION() void OnClickStartBattle();
 };

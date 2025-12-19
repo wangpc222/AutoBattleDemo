@@ -60,11 +60,10 @@ bool ARTSGameMode::TryBuyUnit(EUnitType Type, int32 Cost, int32 GridX, int32 Gri
     TSubclassOf<ABaseUnit> SpawnClass = nullptr;
     switch (Type)
     {
-    case EUnitType::Soldier:    SpawnClass = BarbarianClass; break; // ”≥…‰
-    case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
-    case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
-    case EUnitType::Giant:      SpawnClass = GiantClass;     break;
-    case EUnitType::Bomber:     SpawnClass = BoomerClass;    break;
+        case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
+        case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
+        case EUnitType::Giant:      SpawnClass = GiantClass;     break;
+        case EUnitType::Bomber:     SpawnClass = BoomerClass;    break;
     }
 
     if (!SpawnClass || !GridManager) return false;
