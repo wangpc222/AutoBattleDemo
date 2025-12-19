@@ -41,10 +41,6 @@ enum class EBuildingType : uint8
     Headquarters  UMETA(DisplayName = "Headquarters"),  // 大本营
     Wall          UMETA(DisplayName = "Wall"),          // 墙
     Other         UMETA(DisplayName = "Other")          // 其他
-    Soldier, // 近战
-    Archer,  // 远程
-    Giant,   // 巨人
-    Boomer   // 炸弹人
 };
 
 // 用于保存士兵数据的结构体
@@ -63,19 +59,6 @@ struct FUnitSaveData
         int32 GridY;
 };
 
-// 建筑类型 (商店购买 & 放置)
-UENUM(BlueprintType)
-enum class EBuildingType : uint8
-{
-    None,
-    HQ,             // 大本营 (Main Base)
-    GoldMine,       // 金矿 (产出)
-    ElixirPump,     // 圣水收集器 (产出)
-    Barracks,       // 兵营 (虽然在这里我们简化为直接UI造兵，但这可以作为科技树前置)
-    DefenseTower,   // 弓箭塔 (防御)
-    Cannon,         // 加农炮 (防御)
-    Wall            // 墙 (阻挡)
-};
 
 // 资源类型 (用于通用扣费逻辑)
 UENUM(BlueprintType)

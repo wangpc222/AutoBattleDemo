@@ -17,7 +17,7 @@ public:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
 
-    // --- å»ºç­‘å±æ€§ ---
+    // --- ½¨ÖşÊôĞÔ ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
         EBuildingType BuildingType;
 
@@ -27,16 +27,16 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
         int32 MaxLevel;
 
-    // --- ç½‘æ ¼åæ ‡ï¼ˆå…³é”®ï¼ä¾›ç‚¸å¼¹äººä½¿ç”¨ï¼‰ ---
-    // è¿™ä¸ªå»ºç­‘åœ¨æˆå‘˜Açš„GridManagerä¸­å æ®çš„ç½‘æ ¼åæ ‡
-    // æˆå‘˜Cåœ¨ç”Ÿæˆå»ºç­‘æ—¶éœ€è¦è®¾ç½®è¿™ä¸¤ä¸ªå€¼
+    // --- Íø¸ñ×ø±ê£¨¹Ø¼ü£¡¹©Õ¨µ¯ÈËÊ¹ÓÃ£© ---
+    // Õâ¸ö½¨ÖşÔÚ³ÉÔ±AµÄGridManagerÖĞÕ¼¾İµÄÍø¸ñ×ø±ê
+    // ³ÉÔ±CÔÚÉú³É½¨ÖşÊ±ĞèÒªÉèÖÃÕâÁ½¸öÖµ
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
         int32 GridX;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
         int32 GridY;
 
-    // --- å‡çº§ç³»ç»Ÿ ---
+    // --- Éı¼¶ÏµÍ³ ---
     UFUNCTION(BlueprintCallable, Category = "Building")
         void LevelUp();
 
@@ -46,10 +46,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Building")
         bool CanUpgrade() const;
 
-    // --- ç‚¹å‡»äº¤äº’ ---
+    // --- µã»÷½»»¥ ---
     virtual void NotifyActorOnClicked(FKey ButtonPressed) override;
 
-    // --- ç»„ä»¶ ---
+    // --- ×é¼ş ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         class UStaticMeshComponent* MeshComp;
 
