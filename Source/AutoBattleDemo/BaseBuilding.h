@@ -1,38 +1,65 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "BaseGameEntity.h"
+#include "RTSCoreTypes.h"
 #include "BaseBuilding.generated.h"
 
+
 UCLASS()
-class AUTOBATTLEDEMO_API ABaseBuilding : public AActor
+class AUTOBATTLEDEMO_API ABaseBuilding : public ABaseGameEntity
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	// ¹¹Ôìº¯Êı
-	ABaseBuilding();
+    ABaseBuilding();
 
-	// ¸²¸ÇÒıÇæ×Ô´øµÄµã»÷ÊÂ¼ş´¦Àíº¯Êı
-	virtual void NotifyActorOnClicked(FKey ButtonPressed = EKeys::LeftMouseButton) override;
+    virtual void BeginPlay() override;
+    virtual void Tick(float DeltaTime) override;
+
+    // --- å»ºç­‘å±æ€§ ---
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        EBuildingType BuildingType;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        int32 BuildingLevel;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")
+        int32 MaxLevel;
+
+    // --- ç½‘æ ¼åæ ‡ï¼ˆå…³é”®ï¼ä¾›ç‚¸å¼¹äººä½¿ç”¨ï¼‰ ---
+    // è¿™ä¸ªå»ºç­‘åœ¨æˆå‘˜Açš„GridManagerä¸­å æ®çš„ç½‘æ ¼åæ ‡
+    // æˆå‘˜Cåœ¨ç”Ÿæˆå»ºç­‘æ—¶éœ€è¦è®¾ç½®è¿™ä¸¤ä¸ªå€¼
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
+        int32 GridX;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid")
+        int32 GridY;
+
+    // --- å‡çº§ç³»ç»Ÿ ---
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        void LevelUp();
+
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        void GetUpgradeCost(int32& OutGold, int32& OutElixir);
+
+    UFUNCTION(BlueprintCallable, Category = "Building")
+        bool CanUpgrade() const;
+
+    // --- ç‚¹å‡»äº¤äº’ ---
+    virtual void NotifyActorOnClicked(FKey ButtonPressed) override;
+
+    // --- ç»„ä»¶ ---
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+        class UStaticMeshComponent* MeshComp;
 
 protected:
-	// ÓÎÏ·¿ªÊ¼Ê±µ÷ÓÃ
-	virtual void BeginPlay() override;
+    virtual void ApplyLevelUpBonus();
 
-public:
-	// Ã¿Ö¡µ÷ÓÃ
-	virtual void Tick(float DeltaTime) override;
+    UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
+        int32 BaseUpgradeGoldCost;
 
-	// --- ºËĞÄ±äÁ¿ÉùÃ÷ ---
 
-	// ¿ÉÊÓ»¯×é¼ş£¨Ä£ĞÍ£©
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-		class UStaticMeshComponent* MeshComp;
-
-	// ÑªÁ¿
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-		float MaxHealth;
+    UPROPERTY(EditAnywhere, Category = "Building|Upgrade")
+        int32 BaseUpgradeElixirCost;
 };

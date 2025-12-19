@@ -1,49 +1,44 @@
 #include "BaseGameEntity.h"
 #include "RTSGameMode.h"
 #include "Kismet/GameplayStatics.h"
-#include "Components/StaticMeshComponent.h"
-#include "Components/WidgetComponent.h"
-#include "Engine/CollisionProfile.h"
 
 ABaseGameEntity::ABaseGameEntity()
 {
-    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = false;
 
-    // ´´½¨¸ù×é¼ş£¨³¡¾°×é¼ş£©
+    // åˆ›å»ºæ ¹ç»„ä»¶
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 
-    // ´´½¨¾²Ì¬Íø¸ñ×é¼ş£¨ÊÓ¾õ±íÏÖ£©
-    StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
-    StaticMeshComponent->SetupAttachment(RootComponent);
-
-    // ÉèÖÃÅö×²
-    StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    StaticMeshComponent->SetCollisionObjectType(ECC_Pawn);
-    StaticMeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
-    StaticMeshComponent->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-    StaticMeshComponent->SetGenerateOverlapEvents(true);
-
-
-    // Ä¬ÈÏÖµ
-    MaxHealth = 100.0f;
+    // é»˜è®¤å€¼
+    MaxHealth = 500.0f; // å»ºç­‘è¡€é‡æ›´é«˜
     CurrentHealth = MaxHealth;
-    TeamID = ETeam::Enemy; // Ä¬ÈÏÎªµĞÈË£¬×ÓÀà¿ÉĞŞ¸Ä
+    TeamID = ETeam::Enemy;
+    bIsTargetable = true;
 }
 
-float ABaseGameEntity::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+void ABaseGameEntity::BeginPlay()
 {
-    // µ÷ÓÃ¸¸ÀàTakeDamage£¬»ñÈ¡Êµ¼ÊÉËº¦Öµ
+    Super::BeginPlay();
+
+    // ç¡®ä¿è¡€é‡åˆå§‹åŒ–
+    CurrentHealth = MaxHealth;
+
+    UE_LOG(LogTemp, Log, TEXT("[Entity] %s spawned | HP: %f | Team: %d | Targetable: %d"),
+        *GetName(), CurrentHealth, (int32)TeamID, bIsTargetable);
+}
+
+float ABaseGameEntity::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+    AController* EventInstigator, AActor* DamageCauser)
+{
     float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-    // Èç¹ûÓĞÊµ¼ÊÉËº¦£¬´¦ÀíÊÜÉËÂß¼­
     if (ActualDamage > 0.0f)
     {
         CurrentHealth -= ActualDamage;
 
-        // ÏÔÊ¾ÊÜÉËĞ§¹û£¨¿ÉÑ¡£©
-        // UE_LOG(LogTemp, Warning, TEXT("%s took %f damage. Current HP: %f"), *GetName(), ActualDamage, CurrentHealth);
+        UE_LOG(LogTemp, Log, TEXT("[Entity] %s took %f damage | HP: %f/%f"),
+            *GetName(), ActualDamage, CurrentHealth, MaxHealth);
 
-        // ¼ì²éÊÇ·ñËÀÍö
         if (CurrentHealth <= 0.0f)
         {
             Die();
@@ -55,13 +50,22 @@ float ABaseGameEntity::TakeDamage(float DamageAmount, FDamageEvent const& Damage
 
 void ABaseGameEntity::Die()
 {
-    // Í¨Öª GameMode (ÎÒÊÇÊÜº¦Õß£¬Ë­É±ÁËÎÒÕâÀïÔİÊ±´«¿Õ)
+    UE_LOG(LogTemp, Warning, TEXT("[Entity] %s died!"), *GetName());
+
+    // è°ƒç”¨è“å›¾å¯é‡å†™çš„æ­»äº¡äº‹ä»¶
+    OnDeath();
+
+    // é€šçŸ¥ GameMode
     ARTSGameMode* GM = Cast<ARTSGameMode>(UGameplayStatics::GetGameMode(this));
     if (GM)
     {
         GM->OnActorKilled(this, nullptr);
     }
 
-    // Ïú»Ù×Ô¼º
     Destroy();
+}
+
+void ABaseGameEntity::OnDeath_Implementation()
+{
+    // é»˜è®¤å®ç°ä¸ºç©ºï¼Œå­ç±»å¯ä»¥é‡å†™æ·»åŠ ç‰¹æ•ˆã€éŸ³æ•ˆç­‰
 }
