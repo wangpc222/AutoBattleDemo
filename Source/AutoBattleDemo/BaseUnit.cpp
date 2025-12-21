@@ -12,15 +12,17 @@ ABaseUnit::ABaseUnit()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // 鍒涘缓鑳跺泭浣�
+    // 1. 创建胶囊体 (根组件)
     CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComp"));
     CapsuleComp->SetupAttachment(RootComponent);
     CapsuleComp->InitCapsuleSize(40.0f, 90.0f);
     CapsuleComp->SetCollisionProfileName(TEXT("Pawn"));
 
-    // 鍒涘缓妯″瀷
+    // 2. 创建模型
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
     MeshComp->SetupAttachment(CapsuleComp);
+    // 保持为 0，具体偏移在蓝图里调
+    MeshComp->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
 
     // 榛樿灞炴��
     MaxHealth = 100.0f;
@@ -38,14 +40,14 @@ ABaseUnit::ABaseUnit()
     bIsActive = false;
 
     TeamID = ETeam::Player;
-    bIsTargetable = false;
+    bIsTargetable = true; // [修改] 兵当然可以被攻击
 }
 
 void ABaseUnit::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 鑾峰彇 GridManager
+    // 1. 获取 GridManager
     for (TActorIterator<AGridManager> It(GetWorld()); It; ++It)
     {
         GridManagerRef = *It;
@@ -54,7 +56,16 @@ void ABaseUnit::BeginPlay()
 
     if (!GridManagerRef)
     {
-        UE_LOG(LogTemp, Error, TEXT("[Unit] %s cannot find GridManager!"), *GetName());
+        // 只是警告
+        // UE_LOG(LogTemp, Error, TEXT("[Unit] %s cannot find GridManager!"), *GetName());
+    }
+
+    // 2. [新增] 自动激活逻辑 (针对手动放置在战场的敌人)
+    // 如果我是敌人，且地图是战场，那我就不需要 GameMode 来激活我，我自己激活自己
+    FString MapName = GetWorld()->GetMapName();
+    if (MapName.Contains("BattleField") && TeamID == ETeam::Enemy)
+    {
+        SetUnitActive(true);
     }
 }
 
@@ -102,6 +113,7 @@ void ABaseUnit::Tick(float DeltaTime)
         }
         else
         {
+            // 检查目标是否失效
             ABaseGameEntity* TargetEntity = Cast<ABaseGameEntity>(CurrentTarget);
             if (!TargetEntity || TargetEntity->CurrentHealth <= 0 || CurrentTarget->IsPendingKill())
             {
@@ -116,6 +128,7 @@ void ABaseUnit::Tick(float DeltaTime)
         {
             MoveAlongPath(DeltaTime);
 
+            // 移动中也要时刻检查是否已经进入攻击范围 (防止走到脸贴脸才停)
             if (CurrentTarget)
             {
                 float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
@@ -166,7 +179,8 @@ void ABaseUnit::Tick(float DeltaTime)
             for (const FOverlapResult& Res : Overlaps)
             {
                 ABaseUnit* OtherUnit = Cast<ABaseUnit>(Res.GetActor());
-                if (OtherUnit)
+                // 只推开活着的、同阵营的单位 (或者是敌人也推开防止穿模)
+                if (OtherUnit && OtherUnit->CurrentHealth > 0)
                 {
                     // 计算推开的方向
                     FVector Dir = GetActorLocation() - OtherUnit->GetActorLocation();
@@ -247,9 +261,14 @@ AActor* ABaseUnit::FindClosestTarget()
 
 void ABaseUnit::RequestPathToTarget()
 {
+    if (!GridManagerRef)
+    {
+        GridManagerRef = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+    }
+
     if (!CurrentTarget || !GridManagerRef)
     {
-        UE_LOG(LogTemp, Error, TEXT("[Unit] %s cannot request path!"), *GetName());
+        // UE_LOG(LogTemp, Error, TEXT("[Unit] %s cannot request path!"), *GetName());
         return;
     }
 
@@ -261,6 +280,7 @@ void ABaseUnit::RequestPathToTarget()
 
     UE_LOG(LogTemp, Log, TEXT("[Unit] %s path: %d waypoints"), *GetName(), PathPoints.Num());
 
+    /*调试画线
     if (PathPoints.Num() > 1)
     {
         for (int32 i = 0; i < PathPoints.Num() - 1; i++)
@@ -269,8 +289,10 @@ void ABaseUnit::RequestPathToTarget()
                 FColor::Cyan, false, 3.0f, 0, 3.0f);
         }
     }
+    */
 
-    if (PathPoints.Num() > 1 && FVector::DistSquared(PathPoints[0], GetActorLocation()) < 100.0f)
+    // 简单的路径平滑：如果第一个点就在脚下，直接跳过
+    if (PathPoints.Num() > 1 && FVector::DistSquared(PathPoints[0], GetActorLocation()) < 2500.0f)
     {
         CurrentPathIndex = 1;
     }
@@ -294,6 +316,9 @@ void ABaseUnit::MoveAlongPath(float DeltaTime)
 
     FVector TargetPoint = PathPoints[CurrentPathIndex];
     FVector CurrentLocation = GetActorLocation();
+
+    TargetPoint.Z = CurrentLocation.Z;
+
     FVector Direction = (TargetPoint - CurrentLocation).GetSafeNormal();
 
     FVector NewLocation = CurrentLocation + Direction * MoveSpeed * DeltaTime;

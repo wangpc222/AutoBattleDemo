@@ -19,6 +19,14 @@ void ARTSGameMode::BeginPlay()
 {
     Super::BeginPlay();
 
+    // [调试] 打印当前地图名字
+    FString CurrentMapName = GetWorld()->GetMapName();
+    FString CleanMapName = CurrentMapName;
+    CleanMapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix); // 去掉 UEDPIE_0_ 前缀
+
+    // 1. 先打个日志证明 GameMode 活了
+    UE_LOG(LogTemp, Error, TEXT(">>> RTSGameMode BeginPlay Running! Map: %s"), *GetWorld()->GetMapName());
+
     GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 
     // 如果配置了关卡数据且 GridManager 存在，加载敌方配置
@@ -29,14 +37,19 @@ void ARTSGameMode::BeginPlay()
 
     // 简单判断：如果是战斗关卡，直接进入战斗状态
     FString MapName = GetWorld()->GetMapName();
-    if (MapName.Contains("BattleField")) // 战斗关卡名字包含 BattleField
+    if (MapName.Contains("BattleField", ESearchCase::IgnoreCase)) // 战斗关卡名字包含 BattleField
     {
+        // 调试
+        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Battle Map! Spawning Units...")); // 调试日志
+
         CurrentState = EGameState::Battle;
         LoadAndSpawnUnits(); // 把带来的兵放出来
         StartBattlePhase();  // 激活 AI
     }
     else
     {
+        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Base Map. Loading Buildings...")); // 调试日志
+
         CurrentState = EGameState::Preparation; // 基地里是备战
 
         // 回到基地，重新把房子盖起来
@@ -341,8 +354,20 @@ void ARTSGameMode::SaveAndStartBattle(FName LevelName)
 
 void ARTSGameMode::LoadAndSpawnUnits()
 {
+    // [调试 1] 检查函数是否被调用
+    UE_LOG(LogTemp, Error, TEXT(">>> LoadAndSpawnUnits START! <<<"));
+
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+
+    // [调试 2] 检查关键指针
+    if (!GI) UE_LOG(LogTemp, Error, TEXT(">>> GI is NULL!"));
+    if (!GridManager) UE_LOG(LogTemp, Error, TEXT(">>> GridManager is NULL!"));
+
+
     if (!GI || !GridManager) return;
+
+    // [调试 3] 检查存档数量
+    UE_LOG(LogTemp, Warning, TEXT(">>> Army Count in SaveData: %d"), GI->PlayerArmy.Num());
 
     for (const FUnitSaveData& Data : GI->PlayerArmy)
     {
@@ -375,7 +400,30 @@ void ARTSGameMode::LoadAndSpawnUnits()
                 SpawnZOffset = BoxExtent.Z;
             }
         }
+
         SpawnLoc.Z += SpawnZOffset;
+
+
+
+
+
+
+        // 调试
+        UE_LOG(LogTemp, Warning, TEXT("Spawn Unit: %d | GridZ: %f | Offset: %f | FinalZ: %f"),
+            (int32)Data.UnitType,
+            GridManager->GetActorLocation().Z,
+            SpawnZOffset,
+            SpawnLoc.Z
+        );
+
+        
+
+
+
+
+
+
+        
 
         FActorSpawnParameters Params;
         Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -414,8 +462,74 @@ void ARTSGameMode::OnActorKilled(AActor* Victim, AActor* Killer)
 
 void ARTSGameMode::CheckWinCondition()
 {
-    // 这里由你扩展：
-    // 检查是否还有 Enemy HQ -> 胜利
-    // 检查是否还有 Player Units -> 失败
+    // 统计场上敌人的大本营
+    TArray<AActor*> EnemyHQs;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseBuilding::StaticClass(), EnemyHQs);
+
+    int32 EnemyHQCount = 0;
+    for (AActor* Actor : EnemyHQs)
+    {
+        ABaseBuilding* Building = Cast<ABaseBuilding>(Actor);
+        // 必须是敌人，必须是大本营，必须活着
+        if (Building && Building->TeamID == ETeam::Enemy &&
+            Building->BuildingType == EBuildingType::Headquarters &&
+            Building->CurrentHealth > 0)
+        {
+            EnemyHQCount++;
+        }
+    }
+
+    // 胜利条件
+    if (EnemyHQCount == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("VICTORY! Enemy HQ Destroyed!"));
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("VICTORY!"));
+
+        // [奖励逻辑] 在这里给 GameInstance 加钱
+        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+        if (GI)
+        {
+            GI->PlayerGold += 1000;
+            GI->PlayerElixir += 1000;
+        }
+
+        // 3秒后回城 (使用 Timer)
+        FTimerHandle TimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+            {
+                UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
+            }, 3.0f, false);
+
+        return; // 结束检查
+    }
+
+    // 2. 统计场上还剩多少【玩家的兵】
+    TArray<AActor*> PlayerUnits;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseUnit::StaticClass(), PlayerUnits);
+
+    int32 PlayerUnitCount = 0;
+    for (AActor* Actor : PlayerUnits)
+    {
+        ABaseUnit* Unit = Cast<ABaseUnit>(Actor);
+        if (Unit && Unit->TeamID == ETeam::Player && Unit->CurrentHealth > 0)
+        {
+            PlayerUnitCount++;
+        }
+    }
+
+    // --- 失败条件 ---
+    // 如果玩家没兵了，且没赢
+    if (PlayerUnitCount == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DEFEAT! All units lost!"));
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DEFEAT!"));
+
+        // 3秒后回城
+        FTimerHandle TimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+            {
+                UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
+            }, 3.0f, false);
+    }
 }
 
