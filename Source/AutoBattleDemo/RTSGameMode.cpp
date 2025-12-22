@@ -19,38 +19,48 @@ void ARTSGameMode::BeginPlay()
 {
     Super::BeginPlay();
 
-    // [调试] 打印当前地图名字
-    FString CurrentMapName = GetWorld()->GetMapName();
-    FString CleanMapName = CurrentMapName;
-    CleanMapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix); // 去掉 UEDPIE_0_ 前缀
-
-    // 1. 先打个日志证明 GameMode 活了
-    UE_LOG(LogTemp, Error, TEXT(">>> RTSGameMode BeginPlay Running! Map: %s"), *GetWorld()->GetMapName());
-
+    // 1. 找到 GridManager
     GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 
-    // 如果配置了关卡数据且 GridManager 存在，加载敌方配置
-    if (GridManager && CurrentLevelData)
+    // 2. 在这里初始化网格
+    // 确保在做任何加载之前，网格已经就绪
+    if (GridManager)
     {
-        GridManager->LoadLevelFromDataAsset(CurrentLevelData);
+        // 收回网格加载
+        GridManager->GenerateGrid(20, 20, 100.0f);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("CRITICAL ERROR: GridManager NOT found in level!"));
+        return;
     }
 
-    // 简单判断：如果是战斗关卡，直接进入战斗状态
+    // 3. 判断当前地图
     FString MapName = GetWorld()->GetMapName();
-    if (MapName.Contains("BattleField", ESearchCase::IgnoreCase)) // 战斗关卡名字包含 BattleField
+
+    // --- 战斗关卡 ---
+    if (MapName.Contains("BattleField", ESearchCase::IgnoreCase))
     {
-        // 调试
-        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Battle Map! Spawning Units...")); // 调试日志
+        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Battle Map! Spawning Units..."));
+
+        // 只有在战斗关卡，才加载关卡数据 (敌人配置)
+        // 如果放在外面的话，可能会导致你的基地里也刷出敌人的塔！
+        if (GridManager && CurrentLevelData)
+        {
+            // 注意：这内部可能会再次 GenerateGrid，但这没关系，反而更安全
+            GridManager->LoadLevelFromDataAsset(CurrentLevelData);
+        }
 
         CurrentState = EGameState::Battle;
         LoadAndSpawnUnits(); // 把带来的兵放出来
         StartBattlePhase();  // 激活 AI
     }
+    // --- 基地关卡 ---
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Base Map. Loading Buildings...")); // 调试日志
+        UE_LOG(LogTemp, Warning, TEXT(">>> Detected Base Map. Loading Buildings..."));
 
-        CurrentState = EGameState::Preparation; // 基地里是备战
+        CurrentState = EGameState::Preparation;
 
         // 回到基地，重新把房子盖起来
         LoadAndSpawnBase();
@@ -456,6 +466,25 @@ void ARTSGameMode::OnActorKilled(AActor* Victim, AActor* Killer)
 {
     if (!Victim) return;
     UE_LOG(LogTemp, Log, TEXT("Actor Killed: %s"), *Victim->GetName());
+
+    // 士兵死亡返还人口
+    // 1. 尝试把受害者转成士兵
+    ABaseUnit* DeadUnit = Cast<ABaseUnit>(Victim);
+
+    // 2. 只有当它是士兵，且属于玩家阵营时，才返还
+    if (DeadUnit && DeadUnit->TeamID == ETeam::Player)
+    {
+        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+        if (GI)
+        {
+            // 人口 -1，但最小不能小于 0
+            GI->CurrentPopulation = FMath::Max(0, GI->CurrentPopulation - 1);
+
+            UE_LOG(LogTemp, Warning, TEXT("Unit Died! Population returned. Current: %d/%d"),
+                GI->CurrentPopulation, GI->MaxPopulation);
+        }
+    }
+
     CheckWinCondition();
 }
 

@@ -100,28 +100,57 @@ void ARTSPlayerController::OnSelectUnitToPlace(EUnitType UnitType)
 {
     PendingUnitType = UnitType;
     bIsPlacingUnit = true;
-    bIsPlacingBuilding = false; // 互斥
+    bIsPlacingBuilding = false;
 
-    // 生成幽灵
+    // --- 检查当前幽灵是否匹配 ---
+
+    // 如果当前有幽灵，但它不是“兵种幽灵”的类型 (比如之前是建筑幽灵)
+    if (PreviewGhostActor && PreviewGhostActor->GetClass() != PlacementPreviewClass)
+    {
+        PreviewGhostActor->Destroy(); // 销毁旧的
+        PreviewGhostActor = nullptr;
+    }
+
+    // 如果没有幽灵，生成一个新的 (兵种版)
     if (!PreviewGhostActor && PlacementPreviewClass)
     {
         PreviewGhostActor = GetWorld()->SpawnActor<AActor>(PlacementPreviewClass, FVector::ZeroVector, FRotator::ZeroRotator);
     }
-    if (PreviewGhostActor) PreviewGhostActor->SetActorHiddenInGame(false);
+
+    if (PreviewGhostActor)
+    {
+        PreviewGhostActor->SetActorHiddenInGame(false);
+        // 在这里重置一下材质，防止残留红色
+        UStaticMeshComponent* Mesh = PreviewGhostActor->FindComponentByClass<UStaticMeshComponent>();
+        if(Mesh && ValidPlacementMaterial) Mesh->SetMaterial(0, ValidPlacementMaterial);
+    }
 }
 
 void ARTSPlayerController::OnSelectBuildingToPlace(EBuildingType BuildingType)
 {
     PendingBuildingType = BuildingType;
     bIsPlacingBuilding = true;
-    bIsPlacingUnit = false; // 互斥
+    bIsPlacingUnit = false;
 
-    // 生成幽灵
-    if (!PreviewGhostActor && PlacementPreviewClass)
+    // --- [核心逻辑] 检查当前幽灵是否匹配 ---
+
+    // 如果当前有幽灵，但它不是“建筑幽灵”的类型
+    if (PreviewGhostActor && PreviewGhostActor->GetClass() != PlacementPreviewBuildingClass)
     {
-        PreviewGhostActor = GetWorld()->SpawnActor<AActor>(PlacementPreviewClass, FVector::ZeroVector, FRotator::ZeroRotator);
+        PreviewGhostActor->Destroy(); // 销毁旧的
+        PreviewGhostActor = nullptr;
     }
-    if (PreviewGhostActor) PreviewGhostActor->SetActorHiddenInGame(false);
+
+    // 如果没有幽灵，生成一个新的 (建筑版)
+    if (!PreviewGhostActor && PlacementPreviewBuildingClass)
+    {
+        PreviewGhostActor = GetWorld()->SpawnActor<AActor>(PlacementPreviewBuildingClass, FVector::ZeroVector, FRotator::ZeroRotator);
+    }
+
+    if (PreviewGhostActor)
+    {
+        PreviewGhostActor->SetActorHiddenInGame(false);
+    }
 }
 
 void ARTSPlayerController::OnSelectRemoveMode()

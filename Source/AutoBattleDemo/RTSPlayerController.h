@@ -56,8 +56,14 @@ protected:
     UPROPERTY()
         AActor* PreviewGhostActor;
 
+
+    // 兵种的幽灵
     UPROPERTY(EditDefaultsOnly, Category = "UI")
         TSubclassOf<AActor> PlacementPreviewClass;
+
+    // 建筑的幽灵
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+        TSubclassOf<AActor> PlacementPreviewBuildingClass;
 
     // 辅助函数：更新幽灵位置
     void UpdatePlacementGhost();

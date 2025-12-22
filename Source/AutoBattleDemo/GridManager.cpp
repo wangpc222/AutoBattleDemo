@@ -21,7 +21,7 @@ AGridManager::AGridManager()
 void AGridManager::BeginPlay()
 {
     Super::BeginPlay();
-    GenerateGrid(20, 20, 100.0f);
+    // GenerateGrid(20, 20, 100.0f); // 生成网格的权力收回Game Mode
 }
 
 // 生成网格数据：初始化所有格子的基础属性

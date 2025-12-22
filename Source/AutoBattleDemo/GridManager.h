@@ -12,7 +12,7 @@ struct FGridNode
 {
     GENERATED_BODY()
 
-        UPROPERTY()
+    UPROPERTY()
         int32 X;                  // 网格X坐标
     UPROPERTY()
         int32 Y;                  // 网格Y坐标
