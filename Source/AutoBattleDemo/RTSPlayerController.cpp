@@ -265,6 +265,32 @@ void ARTSPlayerController::HandleRemoveMode(AActor* HitActor, AGridManager* Grid
     // 只能删玩家自己的东西
     if (Entity && Entity->TeamID == ETeam::Player)
     {
+        // [新增] 兵营移除限制检查
+        ABuilding_Barracks* Barracks = Cast<ABuilding_Barracks>(HitActor);
+        if (Barracks)
+        {
+            URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+            if (GI)
+            {
+                // 1. 获取这个兵营提供的人口
+                int32 PopBonus = Barracks->GetCurrentCapacity();
+
+                // 2. 计算移除后的人口上限
+                int32 FutureMaxPop = GI->MaxPopulation - PopBonus;
+
+                // 3. 如果移除后，上限 < 当前人口，禁止移除！
+                if (FutureMaxPop < GI->CurrentPopulation)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Cannot remove Barracks! Population would overflow (%d > %d)"),
+                        GI->CurrentPopulation, FutureMaxPop);
+
+                    if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Cannot Remove! Population limit too low!"));
+
+                    return; // 直接返回，不执行后面的销毁逻辑
+                }
+            }
+        }
+
         // 检查是否是 HQ
         ABaseBuilding* Building = Cast<ABaseBuilding>(HitActor);
         if (Building)

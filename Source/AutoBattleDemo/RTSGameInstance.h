@@ -27,7 +27,7 @@ public:
         int32 CurrentPopulation = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Data")
-        int32 MaxPopulation = 20;
+        int32 MaxPopulation = 0; // 初始为0，全靠 HQ 和 兵营 提供
 
     // 玩家的军队阵容
     UPROPERTY(BlueprintReadWrite, Category = "SaveData")

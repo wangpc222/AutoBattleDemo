@@ -10,25 +10,33 @@ ABuilding_Barracks::ABuilding_Barracks()
     BuildingType = EBuildingType::Barracks; // 确保 CoreTypes 里有这个枚举
     MaxHealth = 800.0f;
     TeamID = ETeam::Player;
-
+    BuildingLevel = 1;
     // 默认每个兵营提供 5 人口
-    PopulationBonus = 5;
+    // PopulationBonus = 5;
+}
+
+// [核心公式] 初始5，2,3每级+2，4,5每级+3
+int32 ABuilding_Barracks::GetCurrentCapacity() const
+{
+    // Level 1: 5 + 0 = 5
+    // Level 2: 5 + 2 = 7
+    // Level 3: 5 + 4 = 9
+    // Level 4: 5 + 4 + 3 = 12
+    // Level 5: 5 + 4 + 6 = 15
+    if (BuildingLevel <= 3) return 5 + (BuildingLevel - 1) * 2;
+    else return 9 + (BuildingLevel - 3) * 3;
 }
 
 void ABuilding_Barracks::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 只有玩家的兵营才增加玩家的人口上限
     if (TeamID == ETeam::Player)
     {
         URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
         if (GI)
         {
-            GI->MaxPopulation += PopulationBonus;
-
-            UE_LOG(LogTemp, Log, TEXT("Barracks Built! Max Pop +%d. Current Max: %d"),
-                PopulationBonus, GI->MaxPopulation);
+            GI->MaxPopulation += GetCurrentCapacity();
         }
     }
 }
@@ -37,27 +45,27 @@ void ABuilding_Barracks::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     Super::EndPlay(EndPlayReason);
 
-    // 只有当它是被“销毁”时才扣除 (包括被Remove工具删除，或被敌人打死)
-    // EndPlayReason::Destroyed 是最常见的情况
-    if (EndPlayReason == EEndPlayReason::Destroyed)
+    if (EndPlayReason == EEndPlayReason::Destroyed && TeamID == ETeam::Player)
     {
-        if (TeamID == ETeam::Player)
+        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+        if (GI)
         {
-            URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
-            if (GI)
-            {
-                GI->MaxPopulation = FMath::Max(0, GI->MaxPopulation - PopulationBonus);
-
-                UE_LOG(LogTemp, Log, TEXT("Barracks Destroyed (Not Level Transition). MaxPop -%d"), PopulationBonus);
-            }
+            GI->MaxPopulation = FMath::Max(0, GI->MaxPopulation - GetCurrentCapacity());
         }
     }
 }
 
-// 1. 存兵逻辑
+// 存兵逻辑
 void ABuilding_Barracks::StoreUnit(ABaseUnit* UnitToStore)
 {
     if (!UnitToStore) return;
+
+    // 容量检查
+    if (StoredUnits.Num() >= GetCurrentCapacity())
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("Barracks Full!"));
+        return;
+    }
 
     // 保存数据
     FUnitSaveData Data;
@@ -81,7 +89,7 @@ void ABuilding_Barracks::StoreUnit(ABaseUnit* UnitToStore)
     UE_LOG(LogTemp, Warning, TEXT("Unit Stored in Barracks! Total: %d"), StoredUnits.Num());
 }
 
-// 2. 释放逻辑 (核心)
+// 释放逻辑
 void ABuilding_Barracks::ReleaseAllUnits()
 {
     if (StoredUnits.Num() == 0) return;
@@ -134,6 +142,27 @@ void ABuilding_Barracks::ReleaseAllUnits()
             UE_LOG(LogTemp, Warning, TEXT("Barracks full! No space to release unit."));
             break; // 周围堵死了，别放了
         }
+    }
+}
+
+// 升级逻辑
+void ABuilding_Barracks::ApplyLevelUpBonus()
+{
+    // 1. 先把旧等级加的人口扣掉
+    URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+    if (GI && TeamID == ETeam::Player)
+    {
+        GI->MaxPopulation -= GetCurrentCapacity();
+    }
+
+    // 2. 执行基类升级 (Level++)
+    Super::ApplyLevelUpBonus();
+
+    // 3. 再把新等级的人口加上
+    if (GI && TeamID == ETeam::Player)
+    {
+        GI->MaxPopulation += GetCurrentCapacity();
+        UE_LOG(LogTemp, Log, TEXT("Barracks Upgraded! New Cap: %d"), GetCurrentCapacity());
     }
 }
 

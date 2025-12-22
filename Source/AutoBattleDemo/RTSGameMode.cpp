@@ -63,6 +63,20 @@ void ARTSGameMode::BeginPlay()
 
         CurrentState = EGameState::Preparation;
 
+        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+        if (GI)
+        {
+            // 重置人口上限
+            // 因为接下来 LoadAndSpawnBase 会重新生成 HQ 和兵营，
+            // 它们会再次执行 BeginPlay 把人口加回来。
+            // 如果不归零，就会无限累加。
+            GI->MaxPopulation = 0;
+
+            // 顺便校准当前人口
+            // 以保存的兵力数组数量为准，防止计数器跑偏
+            GI->CurrentPopulation = GI->PlayerArmy.Num();
+        }
+
         // 回到基地，重新把房子盖起来
         LoadAndSpawnBase();
 
@@ -471,6 +485,9 @@ void ARTSGameMode::LoadAndSpawnUnits()
     FString MapName = GetWorld()->GetMapName();
     bool bIsHomeBase = !MapName.Contains("BattleField", ESearchCase::IgnoreCase);
 
+    // 临时记录本轮生成的兵占用的格子 (防止自己人踩自己人)
+    TSet<FIntPoint> OccupiedByUnits;
+
     for (const FUnitSaveData& Data : GI->PlayerArmy)
     {
         // 1. 匹配蓝图
@@ -485,55 +502,55 @@ void ARTSGameMode::LoadAndSpawnUnits()
 
         if (!SpawnClass) continue;
 
-        // --- [修改] 坐标计算逻辑 ---
-        int32 TargetX, TargetY;
-
+        // 确定中心点
+        int32 CenterX, CenterY;
         if (bIsHomeBase)
         {
-            // 如果在基地，忽略 Data 里的坐标，强制围绕 (0,0) 寻找空位
-            TargetX = 0;
-            TargetY = 0;
+            CenterX = 0; CenterY = 0; // 基地：围绕 HQ(0,0)
         }
         else
         {
-            // 如果在战场，使用保存的坐标 (或者你可以改为在战场出生点生成)
-            TargetX = Data.GridX;
-            TargetY = Data.GridY;
+            CenterX = Data.GridX; CenterY = Data.GridY; // 战场：原位
         }
 
-        // --- 螺旋搜索空位 (通用) ---
+        // --- 螺旋搜索空位 ---
         bool bFoundSpot = false;
-        int32 FinalX = TargetX;
-        int32 FinalY = TargetY;
+        int32 FinalX = CenterX;
+        int32 FinalY = CenterY;
 
-        // 检查原点
-        if (GridManager->IsTileWalkable(FinalX, FinalY))
+        // 搜索半径
+        for (int32 Radius = 0; Radius <= 15; ++Radius) // 从 0 开始，先查中心
         {
-            bFoundSpot = true;
-        }
-        else
-        {
-            // 向外扩散搜索
-            for (int32 Radius = 1; Radius <= 10; ++Radius) // 半径大一点，防止兵多挤不下
+            // 简单的矩形遍历算法
+            for (int32 x = CenterX - Radius; x <= CenterX + Radius; ++x)
             {
-                for (int32 x = TargetX - Radius; x <= TargetX + Radius; ++x)
+                for (int32 y = CenterY - Radius; y <= CenterY + Radius; ++y)
                 {
-                    for (int32 y = TargetY - Radius; y <= TargetY + Radius; ++y)
-                    {
-                        if (GridManager->IsTileWalkable(x, y))
-                        {
-                            FinalX = x;
-                            FinalY = y;
-                            bFoundSpot = true;
-                            goto FoundLabel;
-                        }
-                    }
+                    // 1. 检查物理阻挡 (建筑/墙)
+                    if (!GridManager->IsTileWalkable(x, y)) continue;
+
+                    // 2. 检查本轮生成的兵是否占了这个坑
+                    if (OccupiedByUnits.Contains(FIntPoint(x, y))) continue;
+
+                    // 找到空位了！
+                    FinalX = x;
+                    FinalY = y;
+                    bFoundSpot = true;
+                    goto SpotFound;
                 }
             }
         }
-        FoundLabel:;
+        SpotFound:;
 
-        if (!bFoundSpot) continue; // 没地儿了，丢弃
+        // 如果实在没地方了，也只能重叠了(或者不生成)，这里选择跳过不生成以防卡死
+        if (!bFoundSpot)
+        {
+            UE_LOG(LogTemp, Error, TEXT("No space to spawn unit!"));
+            continue;
+        }
+
+        // 记录占用
+        OccupiedByUnits.Add(FIntPoint(FinalX, FinalY));
 
         // 3. 计算世界坐标
         FVector SpawnLoc = GridManager->GridToWorld(FinalX, FinalY);

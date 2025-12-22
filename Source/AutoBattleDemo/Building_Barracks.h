@@ -29,6 +29,12 @@ public:
     // 从存档恢复库存 (用于读档)
     void RestoreStoredUnits(const TArray<EUnitType>& InUnits);
 
+    // 获取当前等级提供的人口/容量
+    int32 GetCurrentCapacity() const;
+
+    // 重写升级后的回调 (如果你基类里没这个，就直接改 LevelUp)
+    virtual void ApplyLevelUpBonus() override;
+
 protected:
     // 提供的额外人口上限
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
