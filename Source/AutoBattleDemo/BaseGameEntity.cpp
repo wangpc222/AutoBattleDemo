@@ -36,15 +36,16 @@ float ABaseGameEntity::TakeDamage(float DamageAmount, FDamageEvent const& Damage
     {
         CurrentHealth -= ActualDamage;
 
-        UE_LOG(LogTemp, Log, TEXT("[Entity] %s took %f damage | HP: %f/%f"),
-            *GetName(), ActualDamage, CurrentHealth, MaxHealth);
+        // 触发蓝图里的受击特效 (音效/粒子)
+        PlayHitVisuals();
 
         if (CurrentHealth <= 0.0f)
         {
+            // 触发死亡特效
+            PlayDeathVisuals();
             Die();
         }
     }
-
     return ActualDamage;
 }
 

@@ -30,6 +30,10 @@ protected:
     // 升级时提升攻击力
     virtual void ApplyLevelUpBonus() override;
 
+    // 子弹蓝图类 (在编辑器里配置 BP_Arrow)
+    UPROPERTY(EditDefaultsOnly, Category = "Combat")
+        TSubclassOf<class ARTSProjectile> ProjectileClass;
+
 private:
     // 寻找范围内最近的敌人
     AActor* FindTargetInRange();

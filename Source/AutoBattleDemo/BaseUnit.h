@@ -82,4 +82,8 @@ protected:
 
     // AI 激活状态
     bool bIsActive;
+
+    // 子弹蓝图类 (在编辑器里配置 BP_Arrow)
+    UPROPERTY(EditDefaultsOnly, Category = "Combat")
+        TSubclassOf<class ARTSProjectile> ProjectileClass;
 };

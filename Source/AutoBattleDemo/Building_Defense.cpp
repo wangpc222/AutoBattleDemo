@@ -1,6 +1,7 @@
 #include "Building_Defense.h"
 #include "BaseUnit.h"
 #include "Kismet/GameplayStatics.h"
+#include "RTSProjectile.h" 
 #include "DrawDebugHelpers.h"
 
 ABuilding_Defense::ABuilding_Defense()
@@ -107,29 +108,48 @@ void ABuilding_Defense::PerformAttack()
         return;
     }
 
-    // 直接伤害（简化版，不生成投射物）
-    FDamageEvent DamageEvent;
-    CurrentTarget->TakeDamage(Damage, DamageEvent, nullptr, this);
-
-    // 面向目标
-    FVector Direction = (CurrentTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+    // 1. 计算朝向 (塔身旋转面向敌人)
+    FVector Direction = (TargetUnit->GetActorLocation() - GetActorLocation()).GetSafeNormal();
     if (!Direction.IsNearlyZero())
     {
         FRotator NewRotation = Direction.Rotation();
-        NewRotation.Pitch = 0;
+        NewRotation.Pitch = 0; // 塔身只转水平方向，不抬头
         NewRotation.Roll = 0;
         SetActorRotation(NewRotation);
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[Defense] %s fired at %s for %f damage!"),
-        *GetName(), *CurrentTarget->GetName(), Damage);
+    // 2. 攻击逻辑分流
+    if (ProjectileClass)
+    {
+        // --- 方案 A: 发射实体子弹 (视觉表现好) ---
 
-    // TODO: 如果有投射物类，在这里生成投射物
-    // if (ProjectileClass)
-    // {
-    //     FVector SpawnLoc = GetActorLocation() + Direction * 50.0f;
-    //     GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLoc, Direction.Rotation());
-    // }
+        // 计算发射点：从塔顶发射，而不是塔底
+        // 假设塔高约 200，我们从 150 的高度发射 (或者你可以加一个 ArrowComponent 作为枪口)
+        FVector SpawnLocation = GetActorLocation() + FVector(0.f, 0.f, 150.0f);
+
+        // 子弹的朝向指向敌人
+        FRotator SpawnRotation = (TargetUnit->GetActorLocation() - SpawnLocation).Rotation();
+
+        // 生成子弹
+        ARTSProjectile* NewProjectile = GetWorld()->SpawnActor<ARTSProjectile>(ProjectileClass, SpawnLocation, SpawnRotation);
+
+        if (NewProjectile)
+        {
+            // 初始化子弹 (告诉它打谁、伤害多少、谁发射的)
+            NewProjectile->Initialize(TargetUnit, Damage, this);
+
+            UE_LOG(LogTemp, Log, TEXT("[Defense] %s Fired Projectile!"), *GetName());
+        }
+    }
+    else
+    {
+        // --- 方案 B: 直接伤害 (保底逻辑，防止没配子弹时没伤害) ---
+
+        FDamageEvent DamageEvent;
+        TargetUnit->TakeDamage(Damage, DamageEvent, nullptr, this);
+
+        UE_LOG(LogTemp, Log, TEXT("[Defense] %s Instant Hit %s!"), *GetName(), *TargetUnit->GetName());
+    }
 }
 
 void ABuilding_Defense::ApplyLevelUpBonus()

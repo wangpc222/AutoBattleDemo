@@ -1,4 +1,5 @@
 #include "Soldier_Archer.h"
+#include "RTSProjectile.h" 
 
 ASoldier_Archer::ASoldier_Archer()
 {
@@ -52,20 +53,27 @@ void ASoldier_Archer::PerformAttack()
     float CurrentTime = GetWorld()->GetTimeSeconds();
     if (CurrentTime - LastAttackTime >= AttackInterval)
     {
-        FDamageEvent DamageEvent;
-        CurrentTarget->TakeDamage(Damage, DamageEvent, nullptr, this);
         LastAttackTime = CurrentTime;
 
-        FVector Direction = (CurrentTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-        if (!Direction.IsNearlyZero())
+        // --- 修改：生成投射物，而不是直接 TakeDamage ---
+        if (ProjectileClass)
         {
-            FRotator NewRotation = Direction.Rotation();
-            NewRotation.Pitch = 0;
-            NewRotation.Roll = 0;
-            SetActorRotation(NewRotation);
+            FVector SpawnLoc = GetActorLocation() + FVector(0, 0, 50); // 从胸口发射
+            FRotator SpawnRot = (CurrentTarget->GetActorLocation() - SpawnLoc).Rotation();
+
+            ARTSProjectile* Arrow = GetWorld()->SpawnActor<ARTSProjectile>(ProjectileClass, SpawnLoc, SpawnRot);
+            if (Arrow)
+            {
+                Arrow->Initialize(CurrentTarget, Damage, this);
+            }
+        }
+        else
+        {
+            // 如果没配子弹，保底还是直接扣血
+            FDamageEvent DamageEvent;
+            CurrentTarget->TakeDamage(Damage, DamageEvent, nullptr, this);
         }
 
-        UE_LOG(LogTemp, Log, TEXT("[Archer] %s shot %s from distance %f!"),
-            *GetName(), *CurrentTarget->GetName(), Distance);
+        UE_LOG(LogTemp, Log, TEXT("Archer Fired Arrow!"));
     }
 }

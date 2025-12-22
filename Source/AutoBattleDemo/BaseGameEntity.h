@@ -40,4 +40,12 @@ public:
     UFUNCTION(BlueprintNativeEvent, Category = "Entity")
         void OnDeath();
     virtual void OnDeath_Implementation();
+
+    // 播放受击特效 (C++ 调用，蓝图实现)
+    UFUNCTION(BlueprintImplementableEvent, Category = "Visuals")
+        void PlayHitVisuals();
+
+    // 播放死亡特效
+    UFUNCTION(BlueprintImplementableEvent, Category = "Visuals")
+        void PlayDeathVisuals();
 };
