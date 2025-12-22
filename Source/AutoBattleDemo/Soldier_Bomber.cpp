@@ -135,7 +135,7 @@ void ASoldier_Bomber::SuicideAttack()
     {
         // 在当前位置生成粒子
         // FVector(3.0f) 是缩放比例，让爆炸看起来大一点
-        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionVFX, ExplosionCenter, FRotator::ZeroRotator, FVector(3.0f));
+        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionVFX, ExplosionCenter, FRotator::ZeroRotator, FVector(1.0f));
     }
 
     // 2. 播放声音
