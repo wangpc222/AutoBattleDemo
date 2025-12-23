@@ -30,10 +30,10 @@ public:
     void RestoreStoredUnits(const TArray<EUnitType>& InUnits);
 
     // 获取当前等级提供的人口/容量
-    int32 GetCurrentCapacity() const;
+    int32 GetCurrentCapacity(int Level) const;
 
-    // 重写升级后的回调 (如果你基类里没这个，就直接改 LevelUp)
-    virtual void ApplyLevelUpBonus() override;
+    // 覆盖父类的 LevelUp，完全接管升级逻辑
+    virtual void LevelUp() override;
 
 protected:
     // 提供的额外人口上限
@@ -45,6 +45,7 @@ protected:
     UPROPERTY(VisibleAnywhere, Category = "Storage")
         TArray<FUnitSaveData> StoredUnits;
 
-
+    // 覆盖父类的 ApplyLevelUpBonus
+    virtual void ApplyLevelUpBonus() override;
 
 };

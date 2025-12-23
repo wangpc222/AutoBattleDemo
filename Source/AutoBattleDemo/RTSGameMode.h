@@ -71,6 +71,9 @@ public:
     // 检查是否满足造兵的科技要求
     bool CheckUnitTechRequirement(EUnitType Type);
 
+    UFUNCTION(BlueprintPure)
+        EGameState GetCurrentState() const { return CurrentState; }
+
 protected:
     UPROPERTY(BlueprintReadOnly, Category = "GameFlow")
         EGameState CurrentState;

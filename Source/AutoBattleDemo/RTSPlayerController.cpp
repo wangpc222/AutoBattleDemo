@@ -185,18 +185,41 @@ bool ARTSPlayerController::CancelCurrentAction()
     // 检查是否有正在进行的状态
     if (bIsPlacingUnit || bIsPlacingBuilding || bIsRemoving)
     {
-        // 1. 重置所有状态标志
+        // 重置所有状态标志
         bIsPlacingUnit = false;
         bIsPlacingBuilding = false;
         bIsRemoving = false;
 
-        // 2. 隐藏幽灵
+        // 隐藏幽灵
         if (PreviewGhostActor)
         {
             PreviewGhostActor->SetActorHiddenInGame(true);
         }
 
-        // 3. 打印提示
+        // 如果是在移动单位，取消时要还原
+        if (UnitBeingMoved)
+        {
+            // 1. 重新显示
+            UnitBeingMoved->SetActorHiddenInGame(false);
+            UnitBeingMoved->SetActorEnableCollision(true);
+
+            // 2. 重新锁定格子
+            AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+            if (GridManager)
+            {
+                int32 X, Y;
+                if (GridManager->WorldToGrid(UnitBeingMoved->GetActorLocation(), X, Y))
+                {
+                    GridManager->SetTileBlocked(X, Y, true);
+                }
+            }
+
+            // 3. 清空引用
+            UnitBeingMoved = nullptr;
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Orange, TEXT("Move Cancelled - Unit Restored"));
+        }
+
+        // 打印提示
         if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Orange, TEXT("Action Cancelled"));
 
         return true; // 告诉调用者：我干活了
@@ -207,6 +230,26 @@ bool ARTSPlayerController::CancelCurrentAction()
 
 void ARTSPlayerController::HandlePlacementMode(const FHitResult& Hit, AGridManager* GridManager)
 {
+    // 特殊检查：在放置模式下，如果点到了兵营，且正在移动兵
+    AActor* HitActor = Hit.GetActor();
+    if (UnitBeingMoved && bIsPlacingUnit)
+    {
+        ABuilding_Barracks* Barracks = Cast<ABuilding_Barracks>(HitActor);
+        if (Barracks && Barracks->TeamID == ETeam::Player)
+        {
+            // 直接存入兵营
+            Barracks->StoreUnit(UnitBeingMoved);
+
+            // 清理状态
+            UnitBeingMoved = nullptr; // 已经交给兵营销毁了，指针置空
+            bIsPlacingUnit = false;
+            if (PreviewGhostActor) PreviewGhostActor->SetActorHiddenInGame(true);
+
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, TEXT("Moved into Barracks!"));
+            return; // 结束逻辑
+        }
+    }
+
     int32 X, Y;
     // 检查是否点在有效网格内
     if (!GridManager->WorldToGrid(Hit.Location, X, Y)) return;
@@ -219,22 +262,52 @@ void ARTSPlayerController::HandlePlacementMode(const FHitResult& Hit, AGridManag
     // 分流：造兵 vs 造建筑
     if (bIsPlacingUnit)
     {
-        // 玩家只能在半区 (X < 8) 放兵
+        // 1. 区域限制 (无论是买还是移动，都不能去敌区)
         if (X >= 8)
         {
             if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Must place in Deployment Zone (X < 8)!"));
-            return; // 直接返回，不执行购买
+            return;
         }
 
-        // 价格表 (建议后续移至 DataTable)
-        int32 Cost = 50;
-        if (PendingUnitType == EUnitType::Archer) Cost = 100;
-        else if (PendingUnitType == EUnitType::Giant) Cost = 300;
-        else if (PendingUnitType == EUnitType::Bomber) Cost = 150;
+        // 2. 判断是【移动旧兵】还是【购买新兵】
+        if (UnitBeingMoved)
+        {
+            // 移动模式 (Move)
+            // 检查格子是否可走
+            if (GridManager->IsTileWalkable(X, Y))
+            {
+                // 使用 SpawnUnitAt (只生成，不扣钱，但内部会自动 +1 人口)
+                bSuccess = GM->SpawnUnitAt(PendingUnitType, X, Y);
 
-        bSuccess = GM->TryBuyUnit(PendingUnitType, Cost, X, Y);
+                if (bSuccess)
+                {
+                    // 移动不应该增加总人口
+                    // SpawnUnitAt 加了 1，所以我们要手动减 1，保持总量不变
+                    /*URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+                    if (GI)
+                    {
+                        GI->CurrentPopulation = FMath::Max(0, GI->CurrentPopulation - 1);
+                    }*/
 
-        // 成功后退出状态
+                    // 销毁旧的兵
+                    UnitBeingMoved->Destroy();
+                    UnitBeingMoved = nullptr; // 指针置空
+                }
+            }
+        }
+        else
+        {
+            // 购买模式 (Buy)
+            int32 Cost = 50;
+            if (PendingUnitType == EUnitType::Archer) Cost = 100;
+            else if (PendingUnitType == EUnitType::Giant) Cost = 300;
+            else if (PendingUnitType == EUnitType::Bomber) Cost = 150;
+
+            // 使用 TryBuyUnit (扣钱，加人口)
+            bSuccess = GM->TryBuyUnit(PendingUnitType, Cost, X, Y);
+        }
+
+        // 无论哪种情况，成功后退出放置模式
         if (bSuccess) bIsPlacingUnit = false;
     }
     else if (bIsPlacingBuilding)
@@ -285,7 +358,7 @@ void ARTSPlayerController::HandleRemoveMode(AActor* HitActor, AGridManager* Grid
             if (GI)
             {
                 // 1. 获取这个兵营提供的人口
-                int32 PopBonus = Barracks->GetCurrentCapacity();
+                int32 PopBonus = Barracks->GetCurrentCapacity(Barracks->BuildingLevel);
 
                 // 2. 计算移除后的人口上限
                 int32 FutureMaxPop = GI->MaxPopulation - PopBonus;
@@ -353,6 +426,39 @@ void ARTSPlayerController::HandleRemoveMode(AActor* HitActor, AGridManager* Grid
     }
 }
 
+void ARTSPlayerController::StartRepositioningSelectedUnit()
+{
+    if (!SelectedUnit) return;
+    if (SelectedUnit->IsPendingKill()) return;
+
+    // 1. 记录正在移动的兵
+    UnitBeingMoved = SelectedUnit;
+
+    // 2. 隐藏它 (假装拿起来了)
+    UnitBeingMoved->SetActorHiddenInGame(true);
+    UnitBeingMoved->SetActorEnableCollision(false); // 关闭碰撞，防止射线打到它自己
+
+    // 3. 解锁它原来的格子
+    /*AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+    if (GridManager)
+    {
+        int32 X, Y;
+        if (GridManager->WorldToGrid(UnitBeingMoved->GetActorLocation(), X, Y))
+        {
+            GridManager->SetTileBlocked(X, Y, false);
+        }
+    }*/
+
+    // 4. 进入放置模式 (复用造兵逻辑)
+    // 注意：这里不用扣钱，因为我们只是移动
+    OnSelectUnitToPlace(UnitBeingMoved->UnitType);
+
+    // 清空选中状态
+    SelectedUnit = nullptr;
+
+    if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, TEXT("Repositioning Unit..."));
+}
+
 void ARTSPlayerController::HandleNormalMode(AActor* HitActor)
 {
     // 1. 尝试点击资源建筑 (收集资源) - 保持原样
@@ -418,8 +524,24 @@ void ARTSPlayerController::HandleNormalMode(AActor* HitActor)
     ABaseUnit* ClickedUnit = Cast<ABaseUnit>(HitActor);
     if (ClickedUnit && ClickedUnit->TeamID == ETeam::Player)
     {
+        // 1. 选中它 (任何时候都可以选中查看属性)
         SelectedUnit = ClickedUnit;
-        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Cyan, FString::Printf(TEXT("Selected Unit: %s"), *ClickedUnit->GetName()));
+
+        // 2. 获取 GameMode 检查状态
+        ARTSGameMode* GM = Cast<ARTSGameMode>(GetWorld()->GetAuthGameMode());
+
+        if (GM && GM->GetCurrentState() == EGameState::Preparation)
+        {
+            // 只有在【备战阶段】(基地)，才能拿起并移动
+            StartRepositioningSelectedUnit();
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Cyan, TEXT("Unit Picked Up!"));
+        }
+        else
+        {
+            // 在【战斗阶段】，不能移动，只能看着
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("Cannot move units during battle!"));
+        }
+
         return;
     }
 
@@ -581,12 +703,19 @@ void ARTSPlayerController::OnPressEsc()
         return;
     }
 
-    // 3. 如果当前没事干 (Idle)，则执行 "返回主菜单"
-    // 回主菜单前要不要自动保存一下基地
-    
+    // 3. 根据地图决定去向
+    FString MapName = GetWorld()->GetMapName();
     ARTSGameMode* GM = Cast<ARTSGameMode>(GetWorld()->GetAuthGameMode());
-    if (GM) GM->SaveBaseLayout();
-    
 
-    UGameplayStatics::OpenLevel(this, FName("MainMenu"));
+    // 如果在战场 -> 执行撤退 (这会保存幸存者，然后回基地)
+    if (MapName.Contains("BattleField") && GM)
+    {
+        GM->ReturnToBase();
+    }
+    // 如果在基地 -> 回主菜单 (记得保存基地布局)
+    else
+    {
+        if (GM) GM->SaveBaseLayout(); // 顺手保存一下家
+        UGameplayStatics::OpenLevel(this, FName("MainMenu"));
+    }
 }

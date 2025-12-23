@@ -39,4 +39,17 @@ public:
 
     // 标记：是否已经初始化过基地？(防止第一次运行把预设的删了)
     bool bHasSavedBase = false;
+
+    // 重置所有玩家数据 (新游戏时调用)
+    UFUNCTION(BlueprintCallable)
+        void ResetData()
+    {
+        PlayerGold = 5000;   // 恢复初始钱
+        PlayerElixir = 5000;
+        CurrentPopulation = 0;
+        MaxPopulation = 0;
+        PlayerArmy.Empty();      // 清空兵
+        SavedBuildings.Empty();  // 清空建筑
+        bHasSavedBase = false;
+    }
 };

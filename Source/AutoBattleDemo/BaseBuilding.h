@@ -38,7 +38,7 @@ public:
 
     // --- Éý¼¶ÏµÍ³ ---
     UFUNCTION(BlueprintCallable, Category = "Building")
-        void LevelUp();
+        virtual void LevelUp();
 
     UFUNCTION(BlueprintCallable, Category = "Building")
         void GetUpgradeCost(int32& OutGold, int32& OutElixir);

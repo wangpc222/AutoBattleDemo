@@ -152,44 +152,51 @@ void ABaseUnit::Tick(float DeltaTime)
         break;
     }
 
-    // 防重叠逻辑 (简单的群聚分离力)
+    // 防重叠与侧滑逻辑
     if (CurrentState != EUnitState::Idle)
     {
-        // 找附近的队友
         TArray<FOverlapResult> Overlaps;
         FCollisionQueryParams Params;
         Params.AddIgnoredActor(this);
 
-        // 检测周围 50cm 内有没有人
+        // 稍微加大检测范围
         bool bHit = GetWorld()->OverlapMultiByChannel(
             Overlaps,
             GetActorLocation(),
             FQuat::Identity,
             ECC_Pawn,
-            FCollisionShape::MakeSphere(50.0f),
+            FCollisionShape::MakeSphere(60.0f),
             Params
         );
 
         if (bHit)
         {
             FVector SeparationForce = FVector::ZeroVector;
+            int32 NeighborCount = 0;
+
             for (const FOverlapResult& Res : Overlaps)
             {
                 ABaseUnit* OtherUnit = Cast<ABaseUnit>(Res.GetActor());
-                // 只推开活着的、同阵营的单位 (或者是敌人也推开防止穿模)
                 if (OtherUnit && OtherUnit->CurrentHealth > 0)
                 {
-                    // 计算推开的方向
                     FVector Dir = GetActorLocation() - OtherUnit->GetActorLocation();
-                    Dir.Z = 0; // 不要在垂直方向推
-                    SeparationForce += Dir.GetSafeNormal();
+                    Dir.Z = 0;
+                    float Dist = Dir.Size();
+
+                    // 距离越近，推力指数级增大
+                    if (Dist > 0.1f)
+                    {
+                        SeparationForce += Dir.GetSafeNormal() * (500.0f / Dist);
+                        NeighborCount++;
+                    }
                 }
             }
 
-            // 施加推力 (轻微偏移)
-            if (!SeparationForce.IsNearlyZero())
+            if (NeighborCount > 0)
             {
-                AddActorWorldOffset(SeparationForce * 10.0f * DeltaTime);
+                // 推力系数
+                FVector FinalPush = SeparationForce.GetClampedToMaxSize(2.0f);
+                AddActorWorldOffset(FinalPush * 200.0f * DeltaTime);
             }
         }
     }
@@ -320,55 +327,75 @@ void ABaseUnit::RequestPathToTarget()
 
 void ABaseUnit::MoveAlongPath(float DeltaTime)
 {
-    if (PathPoints.Num() == 0 || CurrentPathIndex >= PathPoints.Num())
-    {
-        CurrentState = EUnitState::Idle;
-        return;
-    }
-
-    if (!CurrentTarget || CurrentTarget->IsPendingKill())
-    {
-        CurrentState = EUnitState::Idle;
-        CurrentTarget = nullptr;
-        PathPoints.Empty();
-        return;
-    }
+    if (PathPoints.Num() == 0 || CurrentPathIndex >= PathPoints.Num()) { CurrentState = EUnitState::Idle; return; }
+    if (!CurrentTarget || CurrentTarget->IsPendingKill()) { CurrentState = EUnitState::Idle; CurrentTarget = nullptr; PathPoints.Empty(); return; }
 
     FVector TargetPoint = PathPoints[CurrentPathIndex];
     FVector CurrentLocation = GetActorLocation();
 
+    // 1. 抹平 Z 轴
     TargetPoint.Z = CurrentLocation.Z;
 
+    // 2. 计算方向
     FVector Direction = (TargetPoint - CurrentLocation).GetSafeNormal();
 
-    FVector NewLocation = CurrentLocation + Direction * MoveSpeed * DeltaTime;
-    SetActorLocation(NewLocation);
+    // [关键] 强制 Z 为 0，绝对防止钻地
+    Direction.Z = 0.0f;
 
-    if (!Direction.IsNearlyZero())
+    // 3. 物理移动
+    FHitResult Hit;
+    AddActorWorldOffset(Direction * MoveSpeed * DeltaTime, true, &Hit);
+
+    // 4. 撞墙处理
+    if (Hit.bBlockingHit)
     {
-        FRotator NewRotation = Direction.Rotation();
-        NewRotation.Pitch = 0;
-        NewRotation.Roll = 0;
-        SetActorRotation(NewRotation);
+        AActor* HitActor = Hit.GetActor();
+        ABaseUnit* HitUnit = Cast<ABaseUnit>(HitActor);
+        // 如果撞到敌人，且我是普通兵，打它
+        if (HitUnit && HitUnit->TeamID != this->TeamID && HitUnit->CurrentHealth > 0)
+        {
+            if (UnitType != EUnitType::Giant && UnitType != EUnitType::Bomber)
+            {
+                CurrentTarget = HitUnit;
+                CurrentState = EUnitState::Attacking;
+                PathPoints.Empty();
+                return;
+            }
+        }
     }
 
-    float DistanceToPoint = FVector::DistSquared(NewLocation, TargetPoint);
-    if (DistanceToPoint < 900.0f)
+    // 5. 旋转
+    if (!Direction.IsNearlyZero())
+    {
+        FRotator NewRot = FMath::RInterpTo(GetActorRotation(), Direction.Rotation(), DeltaTime, 10.0f);
+        SetActorRotation(NewRot);
+    }
+
+    // 6. [修复] 到达判定
+    float DistanceToPoint = FVector::DistSquared2D(CurrentLocation, TargetPoint);
+
+    // 如果是脱困模式，必须走得准一点 (10cm)，防止还没走出包围圈就停了
+    // 正常模式可以宽一点 (30cm)
+    float AcceptanceRadiusSq = bIsUnstucking ? 100.0f : 900.0f;
+
+    if (DistanceToPoint < AcceptanceRadiusSq)
     {
         CurrentPathIndex++;
 
+        // 路径走完了，判断是否能打到目标
         if (CurrentPathIndex >= PathPoints.Num())
         {
             if (CurrentTarget)
             {
-                float Distance = FVector::Dist(NewLocation, CurrentTarget->GetActorLocation());
-                if (Distance <= AttackRange)
+                float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
+                if (Distance <= AttackRange + 100.0f) // 稍微宽容一点+100
                 {
                     CurrentState = EUnitState::Attacking;
                     UE_LOG(LogTemp, Warning, TEXT("[Unit] %s path complete, starting attack!"), *GetName());
                 }
                 else
                 {
+                    // 还没走到，重新寻路
                     RequestPathToTarget();
                     if (PathPoints.Num() == 0)
                     {
@@ -436,3 +463,4 @@ void ABaseUnit::PerformAttack()
             *GetName(), *CurrentTarget->GetName(), Damage);
     }
 }
+

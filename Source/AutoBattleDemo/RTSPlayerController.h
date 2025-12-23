@@ -50,6 +50,10 @@ public:
     // 处理 Esc 按键
     void OnPressEsc();
 
+    // 开始移动选中的单位
+    UFUNCTION(BlueprintCallable)
+        void StartRepositioningSelectedUnit();
+
     // 尝试取消当前操作
     // 返回 true 表示成功取消了某个操作
     // 返回 false 表示当前没事可做
@@ -90,7 +94,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "UI|Placement")
         UMaterialInterface* InvalidPlacementMaterial; // 非法放置时的材质
 
-
+    // 正在被移动的单位
+    UPROPERTY()
+        class ABaseUnit* UnitBeingMoved;
 
 
 

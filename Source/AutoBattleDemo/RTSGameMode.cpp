@@ -37,6 +37,30 @@ void ARTSGameMode::BeginPlay()
         return;
     }
 
+    // 注册所有手动放置的建筑 (比如敌人的墙)
+    // 因为 GenerateGrid 把网格清空了，我们需要让场景里已有的建筑重新占坑
+    TArray<AActor*> ExistingBuildings;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseBuilding::StaticClass(), ExistingBuildings);
+
+    for (AActor* Actor : ExistingBuildings)
+    {
+        ABaseBuilding* Building = Cast<ABaseBuilding>(Actor);
+        if (Building)
+        {
+            // 如果建筑还没计算过网格坐标 (手动拖进去的通常是 -1)
+            // 或者是为了保险起见，重新计算一次
+            int32 X, Y;
+            if (GridManager->WorldToGrid(Building->GetActorLocation(), X, Y))
+            {
+                Building->GridX = X;
+                Building->GridY = Y;
+
+                // 核心：锁定格子！
+                GridManager->SetTileBlocked(X, Y, true);
+            }
+        }
+    }
+
     // 3. 判断当前地图
     FString MapName = GetWorld()->GetMapName();
 
@@ -132,10 +156,10 @@ bool ARTSGameMode::TryBuyUnit(EUnitType Type, int32 Cost, int32 GridX, int32 Gri
     TSubclassOf<ABaseUnit> SpawnClass = nullptr;
     switch (Type)
     {
-    case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
-    case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
-    case EUnitType::Giant:      SpawnClass = GiantClass;     break;
-    case EUnitType::Bomber:     SpawnClass = BomberClass;    break;
+        case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
+        case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
+        case EUnitType::Giant:      SpawnClass = GiantClass;     break;
+        case EUnitType::Bomber:     SpawnClass = BomberClass;    break;
     }
 
     if (!SpawnClass || !GridManager) return false;
@@ -588,6 +612,7 @@ void ARTSGameMode::LoadAndSpawnUnits()
         if (NewUnit)
         {
             NewUnit->TeamID = ETeam::Player;
+           
             // 锁定新的格子
             // GridManager->SetTileBlocked(FinalX, FinalY, true);
         }
@@ -628,10 +653,10 @@ bool ARTSGameMode::SpawnUnitAt(EUnitType Type, int32 GridX, int32 GridY)
     TSubclassOf<ABaseUnit> SpawnClass = nullptr;
     switch (Type)
     {
-    case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
-    case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
-    case EUnitType::Giant:      SpawnClass = GiantClass;     break;
-    case EUnitType::Bomber:     SpawnClass = BomberClass;    break;
+        case EUnitType::Barbarian:  SpawnClass = BarbarianClass; break;
+        case EUnitType::Archer:     SpawnClass = ArcherClass;    break;
+        case EUnitType::Giant:      SpawnClass = GiantClass;     break;
+        case EUnitType::Bomber:     SpawnClass = BomberClass;    break;
     }
     if (!SpawnClass) return false;
 
@@ -660,7 +685,7 @@ bool ARTSGameMode::SpawnUnitAt(EUnitType Type, int32 GridX, int32 GridY)
     if (NewUnit)
     {
         NewUnit->TeamID = ETeam::Player;
-        GridManager->SetTileBlocked(GridX, GridY, true);
+        // GridManager->SetTileBlocked(GridX, GridY, true);
         return true;
     }
     return false;

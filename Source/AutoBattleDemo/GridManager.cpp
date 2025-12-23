@@ -123,30 +123,47 @@ TArray<FVector> AGridManager::FindPath(const FVector& StartWorldLoc, const FVect
         return Path;
     }
 
-    // 定义 Final 目标了
+    // 定义 Final 目标
     int32 FinalEndX = EndX;
     int32 FinalEndY = EndY;
 
     // 处理终点阻挡逻辑 (攻击建筑时走过去)
+    // 如果终点被阻挡（比如是建筑、墙），我们需要找一个“能站人的、离我最近的”位置作为替代终点
     if (!IsTileWalkable(EndX, EndY))
     {
         bool bFoundAlternative = false;
-        TArray<FIntPoint> Neighbors = GetNeighborNodes(EndX, EndY);
+        float MinDistToStart = FLT_MAX;
 
-        for (const FIntPoint& Neighbor : Neighbors)
+        // 搜索半径：扩大到 4 格 (应对厚墙或者大型建筑)
+        int32 SearchRadius = 4;
+
+        for (int32 x = EndX - SearchRadius; x <= EndX + SearchRadius; ++x)
         {
-            if (IsTileWalkable(Neighbor.X, Neighbor.Y))
+            for (int32 y = EndY - SearchRadius; y <= EndY + SearchRadius; ++y)
             {
-                FinalEndX = Neighbor.X;
-                FinalEndY = Neighbor.Y;
-                bFoundAlternative = true;
-                break; // 找到一个邻居能走就行
+                // 1. 必须是可走的格子
+                if (IsTileWalkable(x, y))
+                {
+                    // 2. 计算这个格子离起点的距离 (我们希望兵少走冤枉路)
+                    // 使用简单的曼哈顿距离或欧几里得距离平方
+                    float DistSq = FMath::Square(x - StartX) + FMath::Square(y - StartY);
+
+                    // 3. 找到更优解
+                    if (DistSq < MinDistToStart)
+                    {
+                        MinDistToStart = DistSq;
+                        FinalEndX = x;
+                        FinalEndY = y;
+                        bFoundAlternative = true;
+                    }
+                }
             }
         }
 
         if (!bFoundAlternative)
         {
-            // 真的完全堵死了，无法到达
+            // 方圆 4 格全是障碍物？那真的没路了
+            // UE_LOG(LogTemp, Warning, TEXT("Pathfinding: Target is completely walled off!"));
             return TArray<FVector>();
         }
     }

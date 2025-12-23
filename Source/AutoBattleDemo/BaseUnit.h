@@ -102,4 +102,11 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Visuals")
         float LungeSpeed = 10.0f; // 冲多快
 
+    // 防卡死变量
+    //FVector LastCheckLocation; // 上次检查时的位置
+    //float StuckTimer;          // 卡住计时器
+    bool bIsUnstucking;        // 是否正在执行脱困移动
+
+    //// void PerformUnstuckManeuver();
+
 };
