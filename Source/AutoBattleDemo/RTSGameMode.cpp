@@ -82,7 +82,7 @@ void ARTSGameMode::BeginPlay()
         StartBattlePhase();  // 激活 AI
     }
     // --- 基地关卡 ---
-    else
+    else  // 基地关卡
     {
         UE_LOG(LogTemp, Warning, TEXT(">>> Detected Base Map. Loading Buildings..."));
 
@@ -91,15 +91,12 @@ void ARTSGameMode::BeginPlay()
         URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
         if (GI)
         {
-            // 重置人口上限
-            // 因为接下来 LoadAndSpawnBase 会重新生成 HQ 和兵营，
-            // 它们会再次执行 BeginPlay 把人口加回来。
-            // 如果不归零，就会无限累加。
+            // 关键：先完全重置人口，然后让建筑重新添加
             GI->MaxPopulation = 0;
-
-            // 顺便校准当前人口
-            // 以保存的兵力数组数量为准，防止计数器跑偏
             GI->CurrentPopulation = GI->PlayerArmy.Num();
+
+            UE_LOG(LogTemp, Log, TEXT("Reset MaxPopulation to 0, CurrentPopulation to %d"),
+                GI->CurrentPopulation);
         }
 
         // 回到基地，重新把房子盖起来
@@ -283,9 +280,7 @@ bool ARTSGameMode::TryBuildBuilding(EBuildingType Type, int32 Cost, int32 GridX,
     return false;
 }
 
-// ---------------------------------------------------------
 // 保存基地 (离开基地前调用)
-// ---------------------------------------------------------
 void ARTSGameMode::SaveBaseLayout()
 {
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
@@ -325,9 +320,7 @@ void ARTSGameMode::SaveBaseLayout()
     UE_LOG(LogTemp, Log, TEXT("Base Saved! Total Buildings: %d"), GI->SavedBuildings.Num());
 }
 
-// ---------------------------------------------------------
 // 加载基地 (回到基地时调用)
-// ---------------------------------------------------------
 void ARTSGameMode::LoadAndSpawnBase()
 {
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
@@ -390,6 +383,25 @@ void ARTSGameMode::LoadAndSpawnBase()
                 {
                     if (ABuilding_Barracks* Barracks = Cast<ABuilding_Barracks>(NewBuilding))
                     {
+                        // 记录BeginPlay添加的人口（初始化是1级）
+                        int32 OldCapacity = Barracks->GetCurrentCapacity(1);
+
+                        // 设置正确的等级
+                        Barracks->BuildingLevel = Data.Level;
+
+                        // 计算正确的人口
+                        int32 CorrectCapacity = Barracks->GetCurrentCapacity(Data.Level);
+
+                        // 修正人口：减去错误添加的，加上正确的
+                        if (GI)
+                        {
+                            GI->MaxPopulation -= OldCapacity;  // 减去1级添加的
+                            GI->MaxPopulation += CorrectCapacity; // 加上正确等级的
+
+                            UE_LOG(LogTemp, Log, TEXT("[Barracks] Population corrected: -%d (Lv1) +%d (Lv%d) = Net +%d"),
+                                OldCapacity, CorrectCapacity, Data.Level, CorrectCapacity - OldCapacity);
+                        }
+
                         Barracks->RestoreStoredUnits(Data.StoredUnitTypes);
                     }
                 }
@@ -474,27 +486,27 @@ void ARTSGameMode::ReturnToBase()
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
     if (!GI) return;
 
-    // 1. 清空旧数据 (把出发前的阵容删掉，防止死兵复活)
+    // 改为使用成员变量而不是局部静态变量
+    static bool bIsReturning = false;
+    if (bIsReturning) return;
+    bIsReturning = true;
+
+    UE_LOG(LogTemp, Warning, TEXT("Returning to Base..."));
+
+    // 保存幸存士兵（但不清除建筑数据）
     GI->PlayerArmy.Empty();
 
-    // 2. 遍历战场上所有的兵
+    // 遍历战场上所有的兵
     for (TActorIterator<ABaseUnit> It(GetWorld()); It; ++It)
     {
         ABaseUnit* Unit = *It;
-
-        // 筛选：必须是玩家的兵 + 必须活着 + 没有被标记销毁
-        if (Unit &&
-            Unit->TeamID == ETeam::Player &&
-            Unit->CurrentHealth > 0 &&
-            !Unit->IsPendingKill())
+        if (Unit && Unit->TeamID == ETeam::Player && Unit->CurrentHealth > 0)
         {
             FUnitSaveData Data;
             Data.UnitType = Unit->UnitType;
 
-            // 计算它当前在战场上的哪个格子 (作为回城后的参考位置)
             if (GridManager)
             {
-                // 如果兵在移动中，可能不在格子上，但这没关系，WorldToGrid 会算最近的
                 GridManager->WorldToGrid(Unit->GetActorLocation(), Data.GridX, Data.GridY);
             }
 
@@ -504,8 +516,13 @@ void ARTSGameMode::ReturnToBase()
 
     UE_LOG(LogTemp, Warning, TEXT("Returning to Base with %d survivors."), GI->PlayerArmy.Num());
 
-    // 3. 回家
-    UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
+    // 3. 添加延时后切换关卡
+    FTimerHandle TimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+        {
+            // 在 Lambda 中不能直接修改外部静态变量
+            UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
+        }, 0.5f, false);
 }
 
 // 加载逻辑：带防重叠功能的生成

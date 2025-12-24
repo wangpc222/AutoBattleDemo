@@ -152,33 +152,29 @@ void ABuilding_Barracks::LevelUp()
     if (!CanUpgrade()) return;
 
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
-
-    int32 OldCapacity = GetCurrentCapacity(BuildingLevel); // 获取 Lv1 的容量 (5)
-
-    // 2. [关键] 在升级前，先扣除当前等级提供的人口
-    if (GI && TeamID == ETeam::Player)
+    if (!GI || TeamID != ETeam::Player)
     {
-        
-        GI->MaxPopulation -= OldCapacity;
-
-        // 防止中间出现负数（虽然理论上不会）
-        GI->MaxPopulation = FMath::Max(0, GI->MaxPopulation);
+        Super::LevelUp();  // 非玩家兵营只执行基本升级
+        return;
     }
 
-    // 3. 执行等级提升 (调用父类逻辑，父类会做 BuildingLevel++ 和扣血回血)
-    // 注意：这里调用的是父类的 LevelUp，不是 ApplyLevelUpBonus
+    // 2. 获取当前等级容量（升级前）
+    int32 OldCapacity = GetCurrentCapacity(BuildingLevel);
+
+    // 3. 先执行父类升级（这会增加 BuildingLevel）
     Super::LevelUp();
 
-    // 4. [关键] 升级后，加上新等级的人口
-    if (GI && TeamID == ETeam::Player)
-    {
-        // 此时 BuildingLevel 已经是 Lv2 了
-        int32 NewCapacity = GetCurrentCapacity(BuildingLevel); // 获取 Lv2 的容量 (7)
-        GI->MaxPopulation += NewCapacity;
+    // 4. 获取新等级容量
+    int32 NewCapacity = GetCurrentCapacity(BuildingLevel);
 
-        UE_LOG(LogTemp, Warning, TEXT("Barracks Upgraded Lv%d->Lv%d. Pop: -%d, +%d. Net: +%d"),
-            BuildingLevel - 1, BuildingLevel, OldCapacity, NewCapacity, NewCapacity - OldCapacity);
-    }
+    // 5. 计算净增加的人口
+    int32 NetIncrease = NewCapacity - OldCapacity;
+
+    // 6. 更新人口上限
+    GI->MaxPopulation += NetIncrease;
+
+    UE_LOG(LogTemp, Warning, TEXT("Barracks Upgraded Lv%d->Lv%d. Pop: +%d (Net). Total MaxPop: %d"),
+        BuildingLevel - 1, BuildingLevel, NetIncrease, GI->MaxPopulation);
 }
 
 
