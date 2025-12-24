@@ -15,6 +15,7 @@ ARTSGameMode::ARTSGameMode()
 {
     PlayerControllerClass = ARTSPlayerController::StaticClass();
     CurrentState = EGameState::Preparation;
+    bIsChangingLevel = false;
 }
 
 void ARTSGameMode::BeginPlay()
@@ -461,6 +462,19 @@ void ARTSGameMode::SaveAndStartBattle(FName LevelName)
         }
     }
 
+    if (GI->PlayerArmy.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cannot start battle: No units on the field!"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("You need an Army to fight! Place some units first."));
+        }
+
+        // 直接返回，不执行切换关卡
+        return;
+    }
+
     // 切换关卡
     UGameplayStatics::OpenLevel(this, LevelName);
 }
@@ -498,46 +512,41 @@ void ARTSGameMode::RestartLevel()
 // 结算逻辑：把活着的兵存下来，然后回城
 void ARTSGameMode::ReturnToBase()
 {
+    // 如果已经在切关卡了，直接返回，防止崩溃
+    if (bIsChangingLevel) return;
+
+    // 锁住
+    bIsChangingLevel = true;
+
+    // 只要进来了，不管是谁调用的，先把定时器掐断！
+    // 这样如果是手动点的，那个3秒倒计时就会被取消，不会再触发第二次
+    GetWorld()->GetTimerManager().ClearTimer(ReturnTimerHandle);
+
     URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
     if (!GI) return;
 
-    // 改为使用成员变量而不是局部静态变量
-    /*static bool bIsReturning = false;
-    if (bIsReturning) return;
-    bIsReturning = true;*/
-
     UE_LOG(LogTemp, Warning, TEXT("Returning to Base..."));
 
-    // 保存幸存士兵（但不清除建筑数据）
+    // 保存逻辑
     GI->PlayerArmy.Empty();
-
-    // 遍历战场上所有的兵
     for (TActorIterator<ABaseUnit> It(GetWorld()); It; ++It)
     {
         ABaseUnit* Unit = *It;
-        if (Unit && Unit->TeamID == ETeam::Player && Unit->CurrentHealth > 0)
+        if (Unit && Unit->TeamID == ETeam::Player && Unit->CurrentHealth > 0 && !Unit->IsPendingKill())
         {
             FUnitSaveData Data;
             Data.UnitType = Unit->UnitType;
-
-            if (GridManager)
-            {
-                GridManager->WorldToGrid(Unit->GetActorLocation(), Data.GridX, Data.GridY);
-            }
-
+            if (GridManager) GridManager->WorldToGrid(Unit->GetActorLocation(), Data.GridX, Data.GridY);
             GI->PlayerArmy.Add(Data);
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Returning to Base with %d survivors."), GI->PlayerArmy.Num());
+    UE_LOG(LogTemp, Warning, TEXT("Survivors saved: %d"), GI->PlayerArmy.Num());
 
-    // 3. 添加延时后切换关卡
-    FTimerHandle TimerHandle;
-    GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
-        {
-            // 在 Lambda 中不能直接修改外部静态变量
-            UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
-        }, 0.5f, false);
+    // 切换关卡
+    // 稍微延迟一点点切，给 Log 一个输出的机会，也防止调用栈冲突
+    // 但必须确保 bIsChangingLevel 已经是 true
+    UGameplayStatics::OpenLevel(this, FName("PlayerBase"));
 }
 
 // 加载逻辑：带防重叠功能的生成
@@ -725,12 +734,8 @@ bool ARTSGameMode::SpawnUnitAt(EUnitType Type, int32 GridX, int32 GridY)
 
 void ARTSGameMode::CheckWinCondition()
 {
-    // 添加防护：如果已经在处理胜利/失败，直接返回
-    static bool bIsProcessing = false;
-    if (bIsProcessing) return;
-
-    // 或者检查当前状态，如果已经是胜利或失败状态，不再处理
-    if (CurrentState == EGameState::Victory || CurrentState == EGameState::Defeat)
+    // 如果已经结算了，或者正在切图，别再查了
+    if (CurrentState == EGameState::Victory || CurrentState == EGameState::Defeat || bIsChangingLevel)
     {
         return;
     }
@@ -753,36 +758,7 @@ void ARTSGameMode::CheckWinCondition()
             EnemyHQCount++;
         }
     }
-
-    // 胜利条件
-    if (EnemyHQCount == 0 && CurrentState != EGameState::Victory)
-    {
-        bIsProcessing = true; // 防止重复进入
-
-        UE_LOG(LogTemp, Warning, TEXT("VICTORY! Enemy HQ Destroyed!"));
-        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("VICTORY!"));
-
-        CurrentState = EGameState::Victory; // 立即更新状态
-
-        // [奖励逻辑]
-        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
-        if (GI)
-        {
-            GI->PlayerGold += 1000;
-            GI->PlayerElixir += 1000;
-        }
-
-        // 3秒后回城
-        FTimerHandle TimerHandle;
-        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
-            {
-                bIsProcessing = false; // 重置处理标志
-                ReturnToBase();
-            }, 3.0f, false);
-
-        return;
-    }
-
+    
     // 统计场上还剩多少【玩家的兵】
     TArray<AActor*> PlayerUnits;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseUnit::StaticClass(), PlayerUnits);
@@ -799,23 +775,39 @@ void ARTSGameMode::CheckWinCondition()
         }
     }
 
-    // --- 失败条件 ---
-    // 如果玩家没兵了，且没赢
-    if (PlayerUnitCount == 0 && CurrentState != EGameState::Defeat && CurrentState != EGameState::Victory)
+    // --- 胜利条件 ---
+    if (EnemyHQCount == 0)
     {
-        bIsProcessing = true; // 防止重复进入
+        CurrentState = EGameState::Victory;
 
-        UE_LOG(LogTemp, Warning, TEXT("DEFEAT! All units lost!"));
+        // 奖励
+        URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+        if (GI) { GI->PlayerGold += 1000; GI->PlayerElixir += 1000; }
+
+        UE_LOG(LogTemp, Warning, TEXT("VICTORY!"));
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("VICTORY!"));
+
+        // [修改] 使用成员变量 TimerHandle
+        GetWorld()->GetTimerManager().SetTimer(ReturnTimerHandle, [this]()
+            {
+                ReturnToBase(); // 定时器触发回城
+            }, 3.0f, false);
+
+        return;
+    }
+
+    // --- 失败条件 ---
+    if (PlayerUnitCount == 0)
+    {
+        CurrentState = EGameState::Defeat;
+
+        UE_LOG(LogTemp, Warning, TEXT("DEFEAT!"));
         if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DEFEAT!"));
 
-        CurrentState = EGameState::Defeat; // 立即更新状态
-
-        // 3秒后回城
-        FTimerHandle TimerHandle;
-        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+        // [修改] 使用成员变量 TimerHandle
+        GetWorld()->GetTimerManager().SetTimer(ReturnTimerHandle, [this]()
             {
-                bIsProcessing = false; // 重置处理标志
-                ReturnToBase();
+                ReturnToBase(); // 定时器触发回城
             }, 3.0f, false);
     }
 }

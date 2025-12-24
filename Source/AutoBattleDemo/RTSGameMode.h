@@ -117,4 +117,10 @@ protected:
     // 兵营蓝图
     UPROPERTY(EditDefaultsOnly, Category = "Classes|Buildings")
         TSubclassOf<class ABaseBuilding> BarracksClass;
+
+    // 用于防止重复切换关卡的锁
+    bool bIsChangingLevel = false;
+
+    // 保存自动回城的定时器句柄，方便手动取消
+    FTimerHandle ReturnTimerHandle;
 };
