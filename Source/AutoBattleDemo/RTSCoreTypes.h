@@ -97,3 +97,17 @@ struct FBuildingSaveData
     UPROPERTY(BlueprintReadWrite)
         TArray<EUnitType> StoredUnitTypes;
 };
+
+UENUM(BlueprintType)
+enum class ETutorialStep : uint8
+{
+    None,
+    Welcome,          // 欢迎：试着移动一下镜头
+    BuildGoldMine,    // 经济：造金矿 (体验赚钱)
+    BuildBarracks,    // 科技：造兵营 (体验解锁人口)
+    UpgradeBarracks,  // 进阶：升级兵营 (体验升级系统)
+    TrainBarbarian,   // 兵力：造野蛮人 (体验花钱)
+    MoveUnit,         // 操作：移动士兵 (体验操作)
+    ClickStart,       // 战斗：出征
+    Completed
+};

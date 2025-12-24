@@ -83,7 +83,7 @@ void ARTSGameMode::BeginPlay()
         StartBattlePhase();  // 激活 AI
     }
     // --- 基地关卡 ---
-    else  // 基地关卡
+    else
     {
         UE_LOG(LogTemp, Warning, TEXT(">>> Detected Base Map. Loading Buildings..."));
 
@@ -543,6 +543,9 @@ void ARTSGameMode::ReturnToBase()
 
     UE_LOG(LogTemp, Warning, TEXT("Survivors saved: %d"), GI->PlayerArmy.Num());
 
+    // 在切换关卡前，把最新的状态写入硬盘
+    GI->SaveGameToDisk();
+
     // 切换关卡
     // 稍微延迟一点点切，给 Log 一个输出的机会，也防止调用栈冲突
     // 但必须确保 bIsChangingLevel 已经是 true
@@ -907,4 +910,95 @@ bool ARTSGameMode::CheckUnitTechRequirement(EUnitType Type)
 
         return false;
     }
+}
+
+void URTSGameInstance::SaveGameToDisk()
+{
+    // 1. 创建存档对象
+    URTSSaveGame* SaveGameInstance = Cast<URTSSaveGame>(UGameplayStatics::CreateSaveGameObject(URTSSaveGame::StaticClass()));
+
+    if (SaveGameInstance)
+    {
+        // 2. 把内存数据 写入 存档对象
+        SaveGameInstance->PlayerGold = this->PlayerGold;
+        SaveGameInstance->PlayerElixir = this->PlayerElixir;
+        SaveGameInstance->PlayerArmy = this->PlayerArmy;
+        SaveGameInstance->SavedBuildings = this->SavedBuildings;
+        SaveGameInstance->bTutorialFinished = this->bTutorialFinished;
+        // 如果你需要存具体的步骤，需要在 Controller 里把步骤同步给 GI，或者这里暂时只存 finished 状态
+
+        // 3. 保存到硬盘
+        UGameplayStatics::SaveGameToSlot(SaveGameInstance, SaveGameInstance->SaveSlotName, SaveGameInstance->UserIndex);
+
+        UE_LOG(LogTemp, Warning, TEXT("Game Saved to Disk!"));
+    }
+}
+
+void URTSGameInstance::LoadGameFromDisk()
+{
+    // 1. 检查存档是否存在
+    FString SlotName = TEXT("SaveSlot1");
+    if (UGameplayStatics::DoesSaveGameExist(SlotName, 0))
+    {
+        // 2. 读取
+        URTSSaveGame* LoadedGame = Cast<URTSSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+
+        if (LoadedGame)
+        {
+            // 3. 把存档数据 还原到 内存
+            this->PlayerGold = LoadedGame->PlayerGold;
+            this->PlayerElixir = LoadedGame->PlayerElixir;
+            this->PlayerArmy = LoadedGame->PlayerArmy;
+            this->SavedBuildings = LoadedGame->SavedBuildings;
+            this->bTutorialFinished = LoadedGame->bTutorialFinished;
+
+            // 标记已有基地，防止 GameMode 重新生成初始 HQ
+            this->bHasSavedBase = (this->SavedBuildings.Num() > 0);
+
+            // 校准人口
+            this->CurrentPopulation = this->PlayerArmy.Num();
+            // MaxPopulation 会在 GameMode 加载建筑时自动计算，这里不用管
+
+            UE_LOG(LogTemp, Warning, TEXT("Game Loaded from Disk!"));
+        }
+    }
+    else
+    {
+        // 没有存档，初始化新游戏数据
+        ResetData();
+    }
+}
+
+void ARTSGameMode::SavePlayerUnits()
+{
+    URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+    if (!GI) return;
+
+    // 1. 清空旧数据
+    GI->PlayerArmy.Empty();
+
+    // 2. 遍历场景里的兵
+    for (TActorIterator<ABaseUnit> It(GetWorld()); It; ++It)
+    {
+        ABaseUnit* Unit = *It;
+        // 筛选：玩家的、活着的、没被销毁的
+        if (Unit &&
+            Unit->TeamID == ETeam::Player &&
+            Unit->CurrentHealth > 0 &&
+            !Unit->IsPendingKill())
+        {
+            FUnitSaveData Data;
+            Data.UnitType = Unit->UnitType;
+
+            // 获取网格位置
+            if (GridManager)
+            {
+                GridManager->WorldToGrid(Unit->GetActorLocation(), Data.GridX, Data.GridY);
+            }
+
+            GI->PlayerArmy.Add(Data);
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Saved %d units to GameInstance."), GI->PlayerArmy.Num());
 }

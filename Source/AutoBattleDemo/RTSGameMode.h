@@ -74,6 +74,8 @@ public:
     UFUNCTION(BlueprintPure)
         EGameState GetCurrentState() const { return CurrentState; }
 
+    void SavePlayerUnits();
+
 protected:
     UPROPERTY(BlueprintReadOnly, Category = "GameFlow")
         EGameState CurrentState;

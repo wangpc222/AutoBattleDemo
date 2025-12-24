@@ -78,6 +78,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 		UTextBlock* Text_UpgradeCost; // 显示 "Upgrade (500 G)"
 
+	 // 教程提示文本
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* Text_Tutorial;
+
 	
 
 

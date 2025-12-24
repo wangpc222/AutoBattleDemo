@@ -2,6 +2,8 @@
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
 #include "RTSCoreTypes.h"
+#include "RTSSaveGame.h"
+#include "Kismet/GameplayStatics.h"
 #include "RTSGameInstance.generated.h"
 
 UCLASS()
@@ -40,6 +42,9 @@ public:
     // 标记：是否已经初始化过基地？(防止第一次运行把预设的删了)
     bool bHasSavedBase = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
+        bool bTutorialFinished = false;
+
     // 重置所有玩家数据 (新游戏时调用)
     UFUNCTION(BlueprintCallable)
         void ResetData()
@@ -51,5 +56,23 @@ public:
         PlayerArmy.Empty();      // 清空兵
         SavedBuildings.Empty();  // 清空建筑
         bHasSavedBase = false;
+        bTutorialFinished = false;
     }
+
+    UFUNCTION(BlueprintCallable, Category = "SaveSystem")
+        void SaveGameToDisk();
+
+    UFUNCTION(BlueprintCallable, Category = "SaveSystem")
+        void LoadGameFromDisk();
+
+    UFUNCTION(BlueprintCallable, Category = "SaveSystem")
+        void StartNewGame();
+
+    // 继续游戏 (读取存档，如果没存档则返回 false)
+    UFUNCTION(BlueprintCallable, Category = "SaveSystem")
+        bool ContinueGame();
+
+    // 检查是否存在存档
+    UFUNCTION(BlueprintCallable, Category = "SaveSystem")
+        bool HasSaveGame();
 };

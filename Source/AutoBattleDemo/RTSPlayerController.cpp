@@ -76,6 +76,150 @@ void ARTSPlayerController::BeginPlay()
             bShowMouseCursor = true;
         }
     }
+
+    // 初始化教程
+    InitTutorial();
+}
+
+void ARTSPlayerController::InitTutorial()
+{
+    URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+    if (!GI) return;
+
+    // 1. 如果教程已完成，或者是在战斗地图，直接结束
+    FString MapName = GetWorld()->GetMapName();
+    if (GI->bTutorialFinished || MapName.Contains("BattleField"))
+    {
+        CurrentTutorialStep = ETutorialStep::Completed;
+        return;
+    }
+
+    // 2. 如果没完成，根据当前情况智能判断 (防止坏档导致卡死)
+    // 比如：如果玩家虽然没存教程进度，但他已经造了兵营，就别让他重造了
+
+    // 简单起见，我们还是从 Welcome 开始，但要给足资源
+    CurrentTutorialStep = ETutorialStep::Welcome;
+
+    // 确保有钱造第一个金矿！
+    // 只有当钱不够造金矿(150)时，才补发低保，防止无限刷钱
+    if (GI->PlayerGold < 200)
+    {
+        GI->PlayerGold = 200;
+    }
+
+    // 只有当水不够造兵(50)时，才补发
+    // (但在 BuildGoldMine 阶段我们希望限制水，这里可以先不发水，等到了造兵阶段再发)
+    if (CurrentTutorialStep == ETutorialStep::Welcome)
+    {
+        // 保持低圣水，引导玩家造矿 (可选)
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Tutorial Started at Step: Welcome"));
+}
+
+// 2. 核心：检查操作是否允许 (白名单机制)
+bool ARTSPlayerController::IsActionAllowed(FString ActionName)
+{
+    // 如果教程已完成，或者存档里标记为完成，则允许所有操作
+    URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+    if (CurrentTutorialStep == ETutorialStep::Completed || (GI && GI->bTutorialFinished))
+    {
+        return true;
+    }
+
+    // 欢迎阶段：禁止点击任何按钮
+    if (CurrentTutorialStep == ETutorialStep::Welcome) return false;
+
+    // 步骤 1: 造金矿
+    if (CurrentTutorialStep == ETutorialStep::BuildGoldMine)
+        return ActionName == "BuildGoldMine";
+
+    // 步骤 2: 造兵营
+    if (CurrentTutorialStep == ETutorialStep::BuildBarracks)
+        return ActionName == "BuildBarracks";
+
+    // 步骤 3: 升级兵营 (允许选中，允许点击升级)
+    if (CurrentTutorialStep == ETutorialStep::UpgradeBarracks)
+        return ActionName == "Upgrade" || ActionName == "SelectBuilding";
+
+    // 步骤 4: 造兵
+    if (CurrentTutorialStep == ETutorialStep::TrainBarbarian)
+        return ActionName == "BuyBarbarian";
+
+    // 步骤 5: 移动兵 (允许选中兵，允许移动)
+    if (CurrentTutorialStep == ETutorialStep::MoveUnit)
+        return ActionName == "MoveUnit" || ActionName == "SelectUnit";
+
+    // 步骤 6: 开始战斗
+    if (CurrentTutorialStep == ETutorialStep::ClickStart)
+        return ActionName == "StartBattle";
+
+    // 显式禁止 Remove (其实下面的逻辑已经默认禁止了，但写出来更清晰)
+    if (ActionName == "Remove") return false;
+
+    return false; // 其他情况全部禁止
+}
+
+// 3. 核心：推进教程状态
+void ARTSPlayerController::AdvanceTutorial()
+{
+    // 状态流转
+    switch (CurrentTutorialStep)
+    {
+    case ETutorialStep::Welcome:
+        CurrentTutorialStep = ETutorialStep::BuildGoldMine;
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Tutorial: Great! Now build a Gold Mine."));
+        break;
+
+    case ETutorialStep::BuildGoldMine:
+        CurrentTutorialStep = ETutorialStep::BuildBarracks;
+        // 奖励金币造兵营
+        if (URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance())) GI->PlayerGold += 400;
+        break;
+
+    case ETutorialStep::BuildBarracks:
+        CurrentTutorialStep = ETutorialStep::UpgradeBarracks;
+        break;
+
+    case ETutorialStep::UpgradeBarracks:
+        CurrentTutorialStep = ETutorialStep::TrainBarbarian;
+        // 奖励圣水造兵
+        if (URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance())) GI->PlayerElixir += 100;
+        break;
+
+    case ETutorialStep::TrainBarbarian:
+        CurrentTutorialStep = ETutorialStep::MoveUnit;
+        break;
+
+    case ETutorialStep::MoveUnit:
+        CurrentTutorialStep = ETutorialStep::ClickStart;
+        break;
+
+    case ETutorialStep::ClickStart:
+        CurrentTutorialStep = ETutorialStep::Completed;
+        // 标记完成并存档
+        if (URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance()))
+        {
+            GI->bTutorialFinished = true;
+            GI->SaveGameToDisk();
+        }
+        break;
+    }
+}
+
+FText ARTSPlayerController::GetTutorialText() const
+{
+    switch (CurrentTutorialStep)
+    {
+    case ETutorialStep::Welcome:         return FText::FromString("Welcome! Use WASD or right click dragging. And scroll to zoom.");
+    case ETutorialStep::BuildGoldMine:   return FText::FromString("OK! We need Gold. Build a Gold Mine!");
+    case ETutorialStep::BuildBarracks:   return FText::FromString("Good! Now build a Barracks to train units.");
+    case ETutorialStep::UpgradeBarracks: return FText::FromString("Select the Barracks and Upgrade it.");
+    case ETutorialStep::TrainBarbarian:  return FText::FromString("Train a Barbarian using Elixir.");
+    case ETutorialStep::MoveUnit:        return FText::FromString("Select your unit and Move it.");
+    case ETutorialStep::ClickStart:      return FText::FromString("Ready for battle? Click START BATTLE! (BE prepared!)");
+    default:                             return FText::GetEmpty();
+    }
 }
 
 void ARTSPlayerController::Tick(float DeltaTime)
@@ -100,6 +244,19 @@ void ARTSPlayerController::Tick(float DeltaTime)
                 GridManager->WorldToGrid(Hit.Location, HoverX, HoverY);
             }
             GridManager->DrawGridVisuals(HoverX, HoverY);
+        }
+    }
+
+    // 教程：欢迎阶段计时检查
+    if (CurrentTutorialStep == ETutorialStep::Welcome)
+    {
+        static float WelcomeTimer = 0.0f;
+        // 检测是否有输入 (简单处理：过了3秒就算学会移动镜头了)
+        WelcomeTimer += DeltaTime;
+        if (WelcomeTimer > 5.0f)
+        {
+            AdvanceTutorial();
+            WelcomeTimer = 0.0f;
         }
     }
 }
@@ -324,6 +481,21 @@ void ARTSPlayerController::HandlePlacementMode(const FHitResult& Hit, AGridManag
 
         // 无论哪种情况，成功后退出放置模式
         if (bSuccess) bIsPlacingUnit = false;
+
+                
+        // 如果当前是【造野蛮人】步骤
+        if (CurrentTutorialStep == ETutorialStep::TrainBarbarian && PendingUnitType == EUnitType::Barbarian)
+        {
+            AdvanceTutorial();
+        }
+
+        // 4. 如果当前是【移动】步骤 (且处于移动模式)
+        // UnitBeingMoved 此时可能已经被置空了，所以我们可以简单判断：
+        // 只要是在 MoveUnit 步骤发生了一次成功的 Unit 放置，就算过关
+        if (CurrentTutorialStep == ETutorialStep::MoveUnit)
+        {
+            AdvanceTutorial();
+        }
     }
     else if (bIsPlacingBuilding)
     {
@@ -343,6 +515,19 @@ void ARTSPlayerController::HandlePlacementMode(const FHitResult& Hit, AGridManag
         bSuccess = GM->TryBuildBuilding(PendingBuildingType, Cost, X, Y);
 
         if (bSuccess) bIsPlacingBuilding = false;
+
+        //// 教程判定
+        //if (bSuccess)
+        //{
+        //    if (CurrentTutorialStep == ETutorialStep::BuildGoldMine && PendingBuildingType == EBuildingType::GoldMine)
+        //    {
+        //        AdvanceTutorial();
+        //    }
+        //    else if (CurrentTutorialStep == ETutorialStep::BuildBarracks && PendingBuildingType == EBuildingType::Barracks)
+        //    {
+        //        AdvanceTutorial();
+        //    }
+        //}
     }
 
     // 统一处理反馈
@@ -350,6 +535,17 @@ void ARTSPlayerController::HandlePlacementMode(const FHitResult& Hit, AGridManag
     {
         if (PreviewGhostActor) PreviewGhostActor->SetActorHiddenInGame(true);
         if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, TEXT("Placed Successfully!"));
+
+        // 如果当前是【造金矿】步骤，且确实造了金矿 -> 下一步
+        if (CurrentTutorialStep == ETutorialStep::BuildGoldMine && PendingBuildingType == EBuildingType::GoldMine)
+        {
+            AdvanceTutorial();
+        }
+        // 如果当前是【造兵营】步骤，且确实造了兵营 -> 下一步
+        else if (CurrentTutorialStep == ETutorialStep::BuildBarracks && PendingBuildingType == EBuildingType::Barracks)
+        {
+            AdvanceTutorial();
+        }
     }
     else
     {
@@ -574,12 +770,19 @@ void ARTSPlayerController::HandleNormalMode(AActor* HitActor)
 // 请求升级
 void ARTSPlayerController::RequestUpgradeSelectedBuilding()
 {
+    // 权限检查
+    if (!IsActionAllowed("Upgrade")) return;
+
     if (SelectedBuilding)
     {
         ARTSGameMode* GM = Cast<ARTSGameMode>(GetWorld()->GetAuthGameMode());
-        if (GM)
+        if (GM && GM->TryUpgradeBuilding(SelectedBuilding))
         {
-            GM->TryUpgradeBuilding(SelectedBuilding);
+            // 教程判定
+            if (CurrentTutorialStep == ETutorialStep::UpgradeBarracks && SelectedBuilding->BuildingType == EBuildingType::Barracks)
+            {
+                AdvanceTutorial();
+            }
         }
     }
 }
@@ -736,8 +939,24 @@ void ARTSPlayerController::OnPressEsc()
     }
     // 如果在基地 -> 回主菜单 (记得保存基地布局)
     else
-    {
-        if (GM) GM->SaveBaseLayout(); // 顺手保存一下家
+    {    
+        if (GM)
+        {
+            URTSGameInstance* GI = Cast<URTSGameInstance>(GetGameInstance());
+            
+
+            if (GI && GI->bTutorialFinished)
+            {
+                GM->SaveBaseLayout(); // 先把建筑存进 GI
+                GM->SavePlayerUnits(); // 存兵
+                GI->SaveGameToDisk(); // 写入硬盘
+                UE_LOG(LogTemp, Warning, TEXT("Game Saved (Tutorial Complete). Returning to Menu."));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Returning to Menu WITHOUT saving (Tutorial Incomplete)."));
+            }
+        }
         UGameplayStatics::OpenLevel(this, FName("MainMenu"));
     }
 }

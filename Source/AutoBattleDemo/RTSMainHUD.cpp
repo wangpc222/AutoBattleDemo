@@ -90,6 +90,22 @@ void URTSMainHUD::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 			Btn_Upgrade->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
+
+	if (PC)
+	{
+		// 更新教程文字
+		if (Text_Tutorial)
+		{
+			// 调用 Controller 里的函数获取当前应该显示的文字
+			Text_Tutorial->SetText(PC->GetTutorialText());
+
+			// 优化：如果教程完成了，隐藏这个文本框			
+			if (PC->GetTutorialStep() == ETutorialStep::Completed)
+				Text_Tutorial->SetVisibility(ESlateVisibility::Hidden);
+			else
+				Text_Tutorial->SetVisibility(ESlateVisibility::Visible);
+		}
+	}
 }
 
 // 辅助函数：处理点击并归还焦点
@@ -97,6 +113,18 @@ void URTSMainHUD::OnClickBuyBarbarian()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		// 拦截检查
+		if (!PC->IsActionAllowed("BuyBarbarian"))
+		{
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return;
+		}
+
 		PC->OnSelectUnitToPlace(EUnitType::Barbarian);
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -106,6 +134,18 @@ void URTSMainHUD::OnClickBuyArcher()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		// 拦截检查
+		if (!PC->IsActionAllowed("BuyArcher"))
+		{
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return;
+		}
+
 		PC->OnSelectUnitToPlace(EUnitType::Archer);
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -115,6 +155,18 @@ void URTSMainHUD::OnClickBuyGiant()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		// 拦截检查
+		if (!PC->IsActionAllowed("BuyGiant"))
+		{
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return;
+		}
+
 		PC->OnSelectUnitToPlace(EUnitType::Giant);
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -124,6 +176,18 @@ void URTSMainHUD::OnClickBuyBomber()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		// 拦截检查
+		if (!PC->IsActionAllowed("BuyBomber"))
+		{
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return;
+		}
+
 		PC->OnSelectUnitToPlace(EUnitType::Bomber);
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -133,6 +197,15 @@ void URTSMainHUD::OnClickBuildTower()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		if (!PC->IsActionAllowed("BuildTower")) {
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // <--- 拦截
+		}
 		PC->OnSelectBuildingToPlace(EBuildingType::Defense); // 注意：对应 GameMode switch 里的类型
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -142,6 +215,16 @@ void URTSMainHUD::OnClickBuildMine()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		if (!PC->IsActionAllowed("BuildGoldMine")) {
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // <--- 拦截
+		}
+
 		PC->OnSelectBuildingToPlace(EBuildingType::GoldMine);
 		PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
 	}
@@ -151,6 +234,16 @@ void URTSMainHUD::OnClickBuildElixir()
 {
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC) {
+		if (!PC->IsActionAllowed("BuildElixir")) {
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // <--- 拦截
+		}
+
 		// 告诉 Controller 我要造圣水收集器
 		PC->OnSelectBuildingToPlace(EBuildingType::ElixirPump);
 
@@ -168,6 +261,16 @@ void URTSMainHUD::OnClickBuildWall()
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC)
 	{
+		if (!PC->IsActionAllowed("BuildWall")) {
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // <--- 拦截
+		}
+
 		// 告诉 Controller：我要造墙
 		PC->OnSelectBuildingToPlace(EBuildingType::Wall);
 
@@ -185,6 +288,16 @@ void URTSMainHUD::OnClickBuildBarracks()
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC)
 	{
+		if (!PC->IsActionAllowed("BuildBarracks")) {
+			// 屏幕红字提示
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // <--- 拦截
+		}
+
 		PC->OnSelectBuildingToPlace(EBuildingType::Barracks);
 
 		// 归还鼠标焦点
@@ -197,9 +310,26 @@ void URTSMainHUD::OnClickBuildBarracks()
 
 void URTSMainHUD::OnClickStartBattle()
 {
+	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
+
+	// 检查 Controller 是否允许
+	if (PC && !PC->IsActionAllowed("StartBattle")) {
+		// 屏幕红字提示
+		if (GEngine)
+		{
+			FString Tip = PC->GetTutorialText().ToString();
+			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+		}
+		return; // <--- 拦截
+	}
+
 	ARTSGameMode* GM = Cast<ARTSGameMode>(UGameplayStatics::GetGameMode(this));
 	if (GM)
 	{
+
+		// 如果是教程最后一步，这里会触发完成
+		if (PC) PC->AdvanceTutorial();
+
 		// 假设战斗地图叫 "BattleField1"
 		GM->SaveAndStartBattle(FName("BattleField1"));
 	}
@@ -210,6 +340,16 @@ void URTSMainHUD::OnClickRemove()
 	ARTSPlayerController* PC = Cast<ARTSPlayerController>(GetOwningPlayer());
 	if (PC)
 	{
+		if (!PC->IsActionAllowed("Remove"))
+		{
+			if (GEngine)
+			{
+				FString Tip = PC->GetTutorialText().ToString();
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Tutorial: ") + Tip);
+			}
+			return; // 被拦截，不进入移除模式
+		}
+
 		PC->OnSelectRemoveMode();
 		// 归还焦点
 		FInputModeGameAndUI InputMode;

@@ -59,6 +59,23 @@ public:
     // 返回 false 表示当前没事可做
     bool CancelCurrentAction();
 
+    // 当前教程步骤
+    UPROPERTY(BlueprintReadOnly, Category = "Tutorial")
+        ETutorialStep CurrentTutorialStep;
+
+    // 推进教程到下一步
+    void AdvanceTutorial();
+
+    // 检查某个操作是否被教程允许
+    bool IsActionAllowed(FString ActionName);
+
+    // 供 HUD 调用：显示当前教程提示 (绑定给 UI Text)
+    UFUNCTION(BlueprintCallable, Category = "Tutorial")
+        FText GetTutorialText() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Tutorial")
+        ETutorialStep GetTutorialStep() const { return CurrentTutorialStep; }
+
 protected:
     // UI 配置
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
@@ -98,6 +115,9 @@ protected:
     UPROPERTY()
         class ABaseUnit* UnitBeingMoved;
 
+    
+    // 初始化教程
+    void InitTutorial();
 
 
 private:
@@ -115,4 +135,6 @@ private:
     void HandlePlacementMode(const FHitResult& Hit, AGridManager* GridManager);
     void HandleRemoveMode(AActor* HitActor, AGridManager* GridManager);
     void HandleNormalMode(AActor* HitActor);
+
+    
 };
